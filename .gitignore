@@ -4,6 +4,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyc
 
 # Virtual environments
 venv/
@@ -24,13 +25,37 @@ ml/datasets/processed/
 # =========================
 # ML generated files
 # =========================
-ml/models/
-ml/results/
+# Track the trained baseline model but ignore large checkpoints
+ml/models/*.pth.bak
+ml/models/checkpoints/
+# Track evaluation results (small JSON + PNGs)
+# ml/results/ is NOT gitignored — keep confusion matrix and curves
 
 # =========================
 # Environment variables
 # =========================
 .env
+
+# =========================
+# Database
+# =========================
+*.db
+*.db-shm
+*.db-wal
+
+# =========================
+# Uploads
+# =========================
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/test_uploads/
+
+# =========================
+# pytest
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
 
 # =========================
 # IDE
@@ -43,3 +68,10 @@ ml/results/
 # =========================
 .DS_Store
 Thumbs.db
+
+# =========================
+# Build artifacts
+# =========================
+dist/
+build/
+*.egg-info/
