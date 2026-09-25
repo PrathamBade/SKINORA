@@ -75,8 +75,8 @@ export default function HistoryPage() {
                       </p>
                       {obs && <SeverityBadge value={obs.value} />}
                       {!obs && (
-                        <span className="text-xs text-gray-600 capitalize border border-white/10 px-2 py-0.5 rounded-full">
-                          {analysis.status}
+                        <span className="text-xs text-gray-400 px-2 py-0.5 rounded-full border border-white/10">
+                          {analysis.status === 'awaiting_model' ? 'Awaiting Model' : analysis.status}
                         </span>
                       )}
                     </div>

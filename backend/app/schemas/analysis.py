@@ -38,6 +38,7 @@ class UploadResponse(BaseModel):
     filename: str
     status: str
     message: str
+    observations: list[ObservationResponse] = []
 
 
 class AnalysisListResponse(BaseModel):

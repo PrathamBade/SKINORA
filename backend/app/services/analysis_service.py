@@ -16,8 +16,9 @@ import uuid
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.ml.inference_wrapper import BackendInferenceService
@@ -194,8 +195,12 @@ async def upload_image(
             "Analysis created without inference (model not loaded): id=%s", analysis.id
         )
 
+    await db.flush()
     logger.info("Analysis finalised: id=%s status=%s", analysis.id, analysis.status)
-    return analysis
+
+    # Re-fetch with selectinload so observations are eagerly loaded for Pydantic serialization
+    loaded = await get_analysis_by_id(db, analysis.id, user.id)
+    return loaded or analysis
 
 
 # ---------------------------------------------------------------------------
@@ -206,9 +211,11 @@ async def upload_image(
 async def get_analysis_by_id(
     db: AsyncSession, analysis_id: str, user_id: str
 ) -> Analysis | None:
-    """Return an Analysis by ID, only if it belongs to the requesting user."""
+    """Return an Analysis by ID with observations eagerly loaded."""
     result = await db.execute(
-        select(Analysis).where(
+        select(Analysis)
+        .options(selectinload(Analysis.observations))
+        .where(
             Analysis.id == analysis_id,
             Analysis.user_id == user_id,
         )
@@ -219,14 +226,15 @@ async def get_analysis_by_id(
 async def get_user_analyses(
     db: AsyncSession, user_id: str, limit: int = 20, offset: int = 0
 ) -> tuple[list[Analysis], int]:
-    """Return a paginated list of analyses for a user and the total count."""
+    """Return a paginated list of analyses for a user with observations eagerly loaded."""
     count_result = await db.execute(
-        select(Analysis).where(Analysis.user_id == user_id)
+        select(func.count(Analysis.id)).where(Analysis.user_id == user_id)
     )
-    total = len(count_result.scalars().all())
+    total = count_result.scalar_one()
 
     result = await db.execute(
         select(Analysis)
+        .options(selectinload(Analysis.observations))
         .where(Analysis.user_id == user_id)
         .order_by(Analysis.created_at.desc())
         .limit(limit)

@@ -1,9 +1,14 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { uploadImage, getRecommendations } from '../api/client.js'
+import { uploadImage, getRecommendations, getAnalysis, getMlStatus } from '../api/client.js'
 import SeverityBadge from '../components/SeverityBadge.jsx'
 
-const SEVERITY_MAP = { 'Level 0 (Clear)': 0, 'Level 1 (Mild)': 1, 'Level 2 (Moderate)': 2, 'Level 3 (Severe)': 3 }
+const SEVERITY_MAP = {
+  'Level 0 (Clear)': 0,
+  'Level 1 (Mild)': 1,
+  'Level 2 (Moderate)': 2,
+  'Level 3 (Severe)': 3,
+}
 
 export default function UploadPage() {
   const [file, setFile] = useState(null)
@@ -13,6 +18,16 @@ export default function UploadPage() {
   const [result, setResult] = useState(null)
   const [recommendations, setRecommendations] = useState(null)
   const [error, setError] = useState('')
+  const [mlStatus, setMlStatus] = useState(null)
+
+  useEffect(() => {
+    getMlStatus()
+      .then(setMlStatus)
+      .catch((err) => {
+        console.error('Failed to get ML status:', err)
+        setMlStatus({ model_loaded: false, error: err.message })
+      })
+  }, [])
 
   function handleFile(selectedFile) {
     if (!selectedFile) return
@@ -44,19 +59,32 @@ export default function UploadPage() {
     setError('')
     setResult(null)
     setRecommendations(null)
+
     try {
       const uploadRes = await uploadImage(file)
-      setResult(uploadRes)
 
-      // If completed with observations, fetch recommendations
-      if (uploadRes.status === 'completed') {
-        const obs = uploadRes.observations ?? []
-        const firstObs = obs[0]
-        if (firstObs) {
-          const severity = SEVERITY_MAP[firstObs.value] ?? null
-          const recs = await getRecommendations(severity)
-          setRecommendations(recs)
+      // Fallback: If uploadRes did not carry observations directly, query analysis by id
+      let fullAnalysis = uploadRes
+      if (
+        uploadRes.status === 'completed' &&
+        (!uploadRes.observations || uploadRes.observations.length === 0)
+      ) {
+        try {
+          fullAnalysis = await getAnalysis(uploadRes.analysis_id)
+        } catch (fetchErr) {
+          console.warn('Could not fetch detailed analysis:', fetchErr)
         }
+      }
+
+      setResult(fullAnalysis)
+
+      // Fetch recommendations tailored to severity level
+      const obsList = fullAnalysis.observations ?? []
+      const firstObs = obsList[0]
+      if (firstObs) {
+        const severity = SEVERITY_MAP[firstObs.value] ?? null
+        const recs = await getRecommendations(severity)
+        setRecommendations(recs)
       }
     } catch (err) {
       setError(err.message || 'Upload failed. Please try again.')
@@ -77,20 +105,56 @@ export default function UploadPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Skin Analysis</h1>
-        <p className="text-gray-500 text-sm mt-1">Upload a clear face photo to detect acne severity with AI</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Skin Analysis</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Upload a clear face photo to assess acne severity with PyTorch ResNet18
+          </p>
+        </div>
+
+        {/* Model status pill */}
+        {mlStatus && (
+          <div className="flex items-center gap-2 self-start sm:self-auto px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                mlStatus.model_loaded ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+              }`}
+            />
+            <span className={mlStatus.model_loaded ? 'text-emerald-400' : 'text-red-400'}>
+              {mlStatus.model_loaded ? 'Model Ready' : 'Model Offline'}
+            </span>
+          </div>
+        )}
       </div>
+
+      {/* Model offline warning banner */}
+      {mlStatus && !mlStatus.model_loaded && (
+        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl px-4 py-3 text-sm flex items-center justify-between">
+          <span>AI model is currently offline. Image uploads will have status <code>awaiting_model</code>.</span>
+          <button
+            onClick={() => getMlStatus().then(setMlStatus)}
+            className="text-xs font-semibold px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Drop zone */}
       {!result && (
         <div
-          onDragOver={(e) => { e.preventDefault(); setDrag(true) }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDrag(true)
+          }}
           onDragLeave={() => setDrag(false)}
           onDrop={handleDrop}
           onClick={() => document.getElementById('file-input').click()}
           className={`relative border-2 border-dashed rounded-2xl cursor-pointer transition flex flex-col items-center justify-center gap-4 py-16 ${
-            drag ? 'border-emerald-400 bg-emerald-400/5' : 'border-white/10 hover:border-emerald-500/50 hover:bg-white/5'
+            drag
+              ? 'border-emerald-400 bg-emerald-400/5'
+              : 'border-white/10 hover:border-emerald-500/50 hover:bg-white/5'
           }`}
         >
           <input
@@ -110,9 +174,18 @@ export default function UploadPage() {
           ) : (
             <>
               <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center">
-                <svg className="w-7 h-7 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                <svg
+                  className="w-7 h-7 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                  />
                 </svg>
               </div>
               <div className="text-center">
@@ -124,7 +197,7 @@ export default function UploadPage() {
         </div>
       )}
 
-      {/* Error */}
+      {/* Error display */}
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 text-sm">
           {error}
@@ -142,9 +215,11 @@ export default function UploadPage() {
             {uploading ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Analysing…
+                Analysing with ResNet18…
               </span>
-            ) : 'Analyse Image'}
+            ) : (
+              'Analyse Image'
+            )}
           </button>
           <button
             onClick={reset}
@@ -158,15 +233,14 @@ export default function UploadPage() {
       {/* Results */}
       {result && (
         <div className="space-y-4">
-          {/* Image + prediction */}
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             {preview && (
               <img src={preview} alt="uploaded" className="w-full max-h-60 object-cover" />
             )}
-            <div className="p-5 space-y-3">
+            <div className="p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Diagnosis</p>
-                <span className="text-xs text-gray-600">{result.filename}</span>
+                <span className="text-xs text-gray-600 font-mono">{result.filename}</span>
               </div>
 
               {obs ? (
@@ -179,8 +253,10 @@ export default function UploadPage() {
                   {/* Confidence bar */}
                   <div>
                     <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                      <span>Confidence</span>
-                      <span className="text-white font-medium">{(obs.confidence * 100).toFixed(1)}%</span>
+                      <span>Model Confidence</span>
+                      <span className="text-white font-medium">
+                        {(obs.confidence * 100).toFixed(1)}%
+                      </span>
                     </div>
                     <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                       <div
@@ -197,7 +273,12 @@ export default function UploadPage() {
                   )}
                 </>
               ) : (
-                <p className="text-gray-500 text-sm">{result.message}</p>
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-amber-300 text-xs">
+                  <p className="font-semibold">{result.message}</p>
+                  <p className="text-gray-400 mt-1">
+                    Status: <code className="text-white">{result.status}</code>
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -205,7 +286,9 @@ export default function UploadPage() {
           {/* Recommendations */}
           {recommendations && (
             <div className="bg-white/5 border border-emerald-500/20 rounded-2xl p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">Skincare Guidance</h3>
+              <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">
+                Skincare Guidance
+              </h3>
               {recommendations.guidance?.map((tip, i) => (
                 <div key={i} className="flex gap-3 text-sm">
                   <span className="text-emerald-500 font-bold shrink-0 mt-0.5">·</span>

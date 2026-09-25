@@ -89,6 +89,9 @@ async def upload_image(
         filename=analysis.stored_filename,
         status=analysis.status,
         message=analysis.status_message or "Image uploaded successfully.",
+        observations=[
+            ObservationResponse.model_validate(obs) for obs in analysis.observations
+        ],
     )
 
 

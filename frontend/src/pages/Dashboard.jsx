@@ -11,12 +11,22 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([getAnalysisHistory(5, 0), getMlStatus()])
-      .then(([history, ml]) => {
-        setRecent(history.analyses || [])
-        setMlStatus(ml)
+    // 1. Fetch ML model status independently
+    getMlStatus()
+      .then(setMlStatus)
+      .catch((err) => {
+        console.error('Failed to get ML status:', err)
+        setMlStatus({ model_loaded: false, error: err.message })
       })
-      .catch(console.error)
+
+    // 2. Fetch recent user analyses
+    getAnalysisHistory(5, 0)
+      .then((history) => {
+        setRecent(history.analyses || [])
+      })
+      .catch((err) => {
+        console.error('Failed to get analysis history:', err)
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -57,15 +67,15 @@ export default function DashboardPage() {
             {mlStatus === null ? (
               <span className="text-gray-500 text-sm">Checking…</span>
             ) : mlStatus.model_loaded ? (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400"></span>
-                <span className="text-emerald-400 font-bold text-sm">Online</span>
-              </>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse"></span>
+                <span className="text-emerald-400 font-bold text-sm">Online (ResNet18)</span>
+              </div>
             ) : (
-              <>
+              <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-400"></span>
                 <span className="text-red-400 font-bold text-sm">Offline</span>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -115,6 +125,10 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {recent.map((analysis) => {
               const obs = analysis.observations?.[0]
+              const statusDisplay =
+                analysis.status === 'awaiting_model'
+                  ? 'Awaiting Model'
+                  : analysis.status
               return (
                 <div
                   key={analysis.analysis_id}
@@ -126,7 +140,9 @@ export default function DashboardPage() {
                     </p>
                     <p className="text-xs text-gray-600 mt-0.5">
                       {new Date(analysis.created_at).toLocaleDateString('en-GB', {
-                        day: 'numeric', month: 'short', year: 'numeric',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
                       })}
                     </p>
                   </div>
@@ -134,7 +150,9 @@ export default function DashboardPage() {
                     {obs ? (
                       <SeverityBadge value={obs.value} />
                     ) : (
-                      <span className="text-xs text-gray-600 capitalize">{analysis.status}</span>
+                      <span className="text-xs text-gray-400 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10">
+                        {statusDisplay}
+                      </span>
                     )}
                   </div>
                 </div>

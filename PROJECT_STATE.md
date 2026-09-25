@@ -25,8 +25,8 @@ The core workflow is:
 | **Phase 1** | **Backend Foundation** | ✅ **Complete** | FastAPI app, async SQLite engine, Pydantic v2 schemas, JWT auth, secure image upload, 26 unit tests. |
 | **Phase 2** | **ML & Data Pipeline** | ✅ **Complete** | ACNE04 dataset preprocessing, stratified splits, ResNet18 baseline trained (57.35% test accuracy), evaluation metrics. |
 | **Phase 3** | **Backend ↔ ML Integration**| ✅ **Complete** | Auto-initializing `BackendInferenceService` singleton, live prediction in `/api/v1/analysis/upload`, 28/28 tests passing. |
-| **Phase 4** | **Frontend Application** | 🔄 **Next** | React + JSX + Vite SPA (login, register, image upload, dashboard, routine guidance). *Do not use TypeScript.* |
-| **Phase 5** | **Full Integration** | ⏳ **Planned** | Frontend-backend end-to-end integration, error boundary handling, user session management. |
+| **Phase 4** | **Frontend Application** | ✅ **Complete** | React + JSX + Vite SPA (login, register, image upload, dashboard, routine guidance). Pure JS/JSX. |
+| **Phase 5** | **Full Integration** | 🔄 **Next** | Frontend-backend end-to-end integration, error boundary handling, user session management. |
 | **Phase 6** | **Testing & Deployment** | ⏳ **Planned** | Containerization, CI/CD pipeline, production PostgreSQL deployment, reverse proxy setup. |
 
 ---
