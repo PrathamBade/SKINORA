@@ -2,10 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-background: #FFFBF1;
+  --color-secondary: #F7F0E5;
+  --color-surface: #FFFFFF;
+  --color-text: #644A47;
+  --color-text-dark: #3F3430;
+  --color-muted: #9B8C7B;
+  --color-accent: #A37D6C;
+  --color-accent-hover: #8A6454;
+  --color-border: #D3C0A8;
+  --color-peach: #E7B697;
+  --color-gold: #F3C88A;
+  --color-green: #B3D1B4;
+}
+
 body {
   margin: 0;
-  background-color: #030712;
-  color: #f3f4f6;
+  background-color: var(--color-background);
+  color: var(--color-text);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle scrollbars fitting the light warm aesthetic */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #F7F0E5;
+}
+::-webkit-scrollbar-thumb {
+  background: #D3C0A8;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9B8C7B;
 }

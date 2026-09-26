@@ -12,7 +12,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-gray-950">
+        <div className="min-h-screen bg-[#FFFBF1] text-[#644A47]">
           <Navbar />
           <main>
             <Routes>

@@ -26,35 +26,35 @@ export default function HistoryPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Analysis History</h1>
-          <p className="text-gray-500 text-sm mt-1">{total} total session{total !== 1 ? 's' : ''}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#3F3430] tracking-tight">Analysis History</h1>
+          <p className="text-[#9B8C7B] text-sm mt-1">{total} total session{total !== 1 ? 's' : ''} recorded</p>
         </div>
         <Link
           to="/upload"
-          className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+          className="bg-[#A37D6C] hover:bg-[#8A6454] text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-soft"
         >
           + New
         </Link>
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 text-sm">
+        <div className="bg-[#E7B697]/25 border border-[#E7B697] text-[#644A47] rounded-xl px-4 py-3 text-sm">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="w-7 h-7 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        <div className="flex justify-center py-20">
+          <div className="w-7 h-7 border-3 border-[#A37D6C] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : analyses.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-white/10 rounded-2xl">
-          <p className="text-gray-500 text-sm">No analyses found.</p>
-          <Link to="/upload" className="text-emerald-400 hover:text-emerald-300 text-sm font-medium mt-2 inline-block">
-            Upload your first image →
+        <div className="text-center py-20 bg-white/70 border border-dashed border-[#D3C0A8] rounded-2xl">
+          <p className="text-[#9B8C7B] text-sm">No analysis records found.</p>
+          <Link to="/upload" className="text-[#A37D6C] hover:text-[#8A6454] text-sm font-semibold mt-2 inline-block">
+            Upload your first photo →
           </Link>
         </div>
       ) : (
@@ -65,28 +65,28 @@ export default function HistoryPage() {
             return (
               <div
                 key={analysis.analysis_id}
-                className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition"
+                className="bg-white border border-[#D3C0A8] rounded-2xl px-5 py-4 hover:border-[#A37D6C] hover:bg-[#F7F0E5]/40 transition shadow-soft"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-white text-sm font-medium truncate">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <p className="text-[#3F3430] text-sm font-semibold truncate">
                         {analysis.original_filename || 'Uploaded image'}
                       </p>
                       {obs && <SeverityBadge value={obs.value} />}
                       {!obs && (
-                        <span className="text-xs text-gray-400 px-2 py-0.5 rounded-full border border-white/10">
+                        <span className="text-xs text-[#9B8C7B] px-2.5 py-0.5 rounded-full bg-[#F7F0E5] border border-[#D3C0A8]">
                           {analysis.status === 'awaiting_model' ? 'Awaiting Model' : analysis.status}
                         </span>
                       )}
                     </div>
                     {obs && (
-                      <p className="text-gray-500 text-xs mt-1">
-                        Confidence: {(obs.confidence * 100).toFixed(1)}%
+                      <p className="text-[#9B8C7B] text-xs mt-1.5">
+                        Model Confidence: <span className="text-[#644A47] font-medium">{(obs.confidence * 100).toFixed(1)}%</span>
                       </p>
                     )}
                   </div>
-                  <time className="text-xs text-gray-600 shrink-0">
+                  <time className="text-xs text-[#9B8C7B] shrink-0 font-medium">
                     {date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </time>
                 </div>
@@ -98,21 +98,21 @@ export default function HistoryPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 pt-2">
+        <div className="flex items-center justify-center gap-3 pt-3">
           <button
             disabled={page === 0}
             onClick={() => setPage((p) => p - 1)}
-            className="px-4 py-2 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:border-white/30 text-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="px-4 py-2 rounded-xl bg-white border border-[#D3C0A8] text-[#644A47] hover:bg-[#F7F0E5] hover:text-[#3F3430] text-sm shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition font-medium"
           >
             ← Prev
           </button>
-          <span className="text-gray-600 text-sm">
+          <span className="text-[#9B8C7B] text-sm">
             Page {page + 1} / {totalPages}
           </span>
           <button
             disabled={page >= totalPages - 1}
             onClick={() => setPage((p) => p + 1)}
-            className="px-4 py-2 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:border-white/30 text-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="px-4 py-2 rounded-xl bg-white border border-[#D3C0A8] text-[#644A47] hover:bg-[#F7F0E5] hover:text-[#3F3430] text-sm shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition font-medium"
           >
             Next →
           </button>
