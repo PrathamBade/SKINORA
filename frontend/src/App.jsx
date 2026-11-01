@@ -73,13 +73,16 @@ export default function App() {
 
   async function fetchEvaluation() {
     setEvalLoading(true);
+    setEvalData(null);
     try {
       let r = await fetch(API + "/api/model-evaluation");
       if (r.ok) {
         setEvalData(await r.json());
+      } else {
+        setEvalData({ available: false, message: "API returned " + r.status });
       }
     } catch {
-      // Graceful fallback
+      setEvalData({ available: false, message: "Could not reach the backend." });
     } finally {
       setEvalLoading(false);
     }
@@ -533,241 +536,388 @@ export default function App() {
         {page === "AI Model Evaluation" && (
           <>
             <div className="intro">
-              <small>RIGOROUS EMPIRICAL BENCHMARKING</small>
+              <small>EMPIRICAL BENCHMARKING</small>
               <h2>
                 ResNet50 Model Evaluation
                 <br />
                 <i>ACNE04 Dataset Performance</i>
               </h2>
               <p>
-                Academic validation metrics evaluated on a strictly separated test set of 292 facial photographs.
-                All values are verified against the active model checkpoint.
+                Performance metrics sourced directly from the evaluation report
+                artifact (<code>evaluation_test.json</code>). Figures reflect
+                the recorded test run; they are not re-verified against the
+                loaded checkpoint at runtime.
               </p>
             </div>
 
-            {/* Performance Summary Cards */}
-            <div className="eval-grid">
-              <div className="eval-card">
-                <small>TEST ACCURACY</small>
-                <b>61.30%</b>
-                <p>292 held-out test images</p>
-              </div>
-              <div className="eval-card">
-                <small>BEST VALIDATION ACC</small>
-                <b>72.57%</b>
-                <p>175 stratified validation images</p>
-              </div>
-              <div className="eval-card">
-                <small>BALANCED ACCURACY</small>
-                <b>61.20%</b>
-                <p>Accounts for class imbalance</p>
-              </div>
-              <div className="eval-card">
-                <small>MACRO F1 SCORE</small>
-                <b>58.98%</b>
-                <p>Unweighted mean of all 4 classes</p>
-              </div>
-            </div>
+            {/* Loading state */}
+            {evalLoading && (
+              <section className="panel pad">
+                <p className="empty">Loading evaluation data…</p>
+              </section>
+            )}
 
-            {/* Dataset Breakdown Panel */}
-            <section className="panel pad">
-              <small>DATASET & SPLIT METHODOLOGY</small>
-              <h2>ACNE04 Dataset Specifications</h2>
-              <p>
-                ACNE04 contains 1,457 clinical face images graded into four ordinal severity levels:
-                mild, moderate, severe, and very severe.
-              </p>
-              <div className="stats" style={{ marginTop: "15px" }}>
-                <article>
-                  <small>TRAINING SPLIT</small>
-                  <b>990</b>
-                  <p>Fine-tuning partition (67.9%)</p>
-                </article>
-                <article>
-                  <small>VALIDATION SPLIT</small>
-                  <b>175</b>
-                  <p>Stratified model selection (12.0%)</p>
-                </article>
-                <article>
-                  <small>TEST SPLIT</small>
-                  <b>292</b>
-                  <p>Independent final evaluation (20.1%)</p>
-                </article>
-              </div>
-              <p className="hint" style={{ marginTop: "15px" }}>
-                No test data was used for hyperparameter tuning, checkpoint selection, or early stopping decisions.
-              </p>
-            </section>
+            {/* Error / missing state */}
+            {!evalLoading && evalData && !evalData.available && (
+              <section className="panel pad">
+                <small>EVALUATION UNAVAILABLE</small>
+                <h2>No evaluation report found</h2>
+                <p>
+                  {evalData.message ||
+                    "Run backend/training/evaluate_acne_model.py to generate evaluation artifacts."}
+                </p>
+                <p className="hint">
+                  The AI Model Evaluation page reads from{" "}
+                  <code>experiments/*/evaluation_test.json</code>.
+                </p>
+              </section>
+            )}
 
-            {/* Per-Class Performance Table */}
-            <section className="panel pad">
-              <small>DETAILED CLASSIFICATION REPORT</small>
-              <h2>Per-Class Precision, Recall & F1 Scores</h2>
-              <p>
-                Because mild and moderate acne represent 78.6% of the dataset, examining per-class breakdown is critical.
-              </p>
-              <table className="eval-table">
-                <thead>
-                  <tr>
-                    <th>Severity Class</th>
-                    <th>Precision</th>
-                    <th>Recall</th>
-                    <th>F1-Score</th>
-                    <th>Test Support</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <span className="eval-badge badge-mild">mild</span>
-                    </td>
-                    <td><b>70.3%</b></td>
-                    <td>62.1%</td>
-                    <td>0.6598</td>
-                    <td>103 images</td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="eval-badge badge-moderate">moderate</span>
-                    </td>
-                    <td><b>64.5%</b></td>
-                    <td>63.0%</td>
-                    <td>0.6375</td>
-                    <td>127 images</td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="eval-badge badge-severe">severe</span>
-                    </td>
-                    <td><b>31.8%</b></td>
-                    <td>38.9%</td>
-                    <td>0.3500</td>
-                    <td>36 images</td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="eval-badge badge-very-severe">very_severe</span>
-                    </td>
-                    <td><b>63.6%</b></td>
-                    <td><b>80.8%</b></td>
-                    <td><b>0.7119</b></td>
-                    <td>26 images</td>
-                  </tr>
-                  <tr style={{ background: "#f8f9f2", fontWeight: 700 }}>
-                    <td>Macro Average</td>
-                    <td>57.6%</td>
-                    <td>61.2%</td>
-                    <td>58.98%</td>
-                    <td>292 images</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p className="hint">
-                Severe acne is a minority class (36 test images) and is primarily confused with adjacent moderate and very severe cases.
-              </p>
-            </section>
+            {/* No response at all yet (initial load with no error) */}
+            {!evalLoading && !evalData && (
+              <section className="panel pad">
+                <p className="empty">
+                  Could not load evaluation data. Ensure the backend is running
+                  at {API}.
+                </p>
+              </section>
+            )}
 
-            {/* Confusion Matrix Visualization */}
-            <section className="panel pad">
-              <small>ERROR ANALYSIS & ADJACENCY</small>
-              <h2>Test Set Confusion Matrix</h2>
-              <p>
-                In dermatological severity scoring, misclassifications between adjacent grades (e.g. mild vs moderate)
-                are clinically standard, whereas extreme misclassifications (mild vs very severe) rarely occur.
-              </p>
-              <div className="cm-wrapper">
-                <table className="cm-table">
-                  <thead>
-                    <tr>
-                      <th rowSpan="2" className="cm-row-label" style={{ verticalAlign: "bottom" }}>
-                        True Severity \ Predicted
-                      </th>
-                      <th colSpan="4" className="cm-group-header">
-                        Predicted Severity Class →
-                      </th>
-                    </tr>
-                    <tr>
-                      <th>mild</th>
-                      <th>moderate</th>
-                      <th>severe</th>
-                      <th>very_severe</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <th className="cm-row-label">mild (103)</th>
-                      <td className="cm-diag">64</td>
-                      <td className="cm-off">30</td>
-                      <td className="cm-off">8</td>
-                      <td className="cm-off">1</td>
-                    </tr>
-                    <tr>
-                      <th className="cm-row-label">moderate (127)</th>
-                      <td className="cm-off">26</td>
-                      <td className="cm-diag">80</td>
-                      <td className="cm-off">17</td>
-                      <td className="cm-off">4</td>
-                    </tr>
-                    <tr>
-                      <th className="cm-row-label">severe (36)</th>
-                      <td className="cm-off">1</td>
-                      <td className="cm-off">14</td>
-                      <td className="cm-diag">14</td>
-                      <td className="cm-off">7</td>
-                    </tr>
-                    <tr>
-                      <th className="cm-row-label">very_severe (26)</th>
-                      <td className="cm-off">0</td>
-                      <td className="cm-off">0</td>
-                      <td className="cm-off">5</td>
-                      <td className="cm-diag">21</td>
-                    </tr>
-                  </tbody>
-                </table>
+            {/* Dynamic metrics when available */}
+            {!evalLoading && evalData && evalData.available && (() => {
+              const rpt = evalData.report || {};
+              const cm = rpt.confusion_matrix || [];
+              const classes = rpt.classes || [];
+              const classMetrics = rpt.class_metrics || {};
+              const splits = evalData.split_sizes || {};
 
-                <div className="cm-legend">
-                  <div className="cm-legend-item">
-                    <span className="cm-swatch cm-swatch-diag" />
-                    <span><b>Diagonal (Green):</b> Correctly classified test samples (179 / 292 = 61.30%)</span>
+              const pct = (v) =>
+                v != null ? (v * 100).toFixed(2) + "%" : "—";
+
+              const diagSum = cm.reduce(
+                (acc, row, i) => acc + (row[i] || 0),
+                0
+              );
+              const totalSamples = rpt.sample_count;
+
+              return (
+                <>
+                  {/* Performance Summary Cards */}
+                  <div className="eval-grid">
+                    <div className="eval-card">
+                      <small>TEST ACCURACY</small>
+                      <b>{pct(rpt.accuracy)}</b>
+                      <p>
+                        {totalSamples != null
+                          ? `${totalSamples} held-out test images`
+                          : "held-out test images"}
+                      </p>
+                    </div>
+                    <div className="eval-card">
+                      <small>BEST VALIDATION ACC</small>
+                      <b>
+                        {evalData.validation_accuracy != null
+                          ? pct(evalData.validation_accuracy)
+                          : "—"}
+                      </b>
+                      <p>
+                        {splits.validation != null
+                          ? `${splits.validation} validation images`
+                          : "validation images (count unavailable)"}
+                      </p>
+                    </div>
+                    <div className="eval-card">
+                      <small>BALANCED ACCURACY</small>
+                      <b>{pct(rpt.balanced_accuracy)}</b>
+                      <p>Accounts for class imbalance</p>
+                    </div>
+                    <div className="eval-card">
+                      <small>MACRO F1 SCORE</small>
+                      <b>{pct(rpt.macro_f1)}</b>
+                      <p>
+                        Unweighted mean of all{" "}
+                        {classes.length > 0 ? classes.length : 4} classes
+                      </p>
+                    </div>
                   </div>
-                  <div className="cm-legend-item">
-                    <span className="cm-swatch cm-swatch-off" />
-                    <span><b>Off-Diagonal:</b> Misclassifications (91.2% fall into immediately adjacent clinical grades)</span>
-                  </div>
-                </div>
-              </div>
-              <p className="hint" style={{ marginTop: "12px" }}>
-                Evaluated on 292 strictly held-out test photographs from the ACNE04 dataset.
-              </p>
-            </section>
 
-            {/* Academic Discussion & Viva Preparation Highlights */}
-            <section className="panel pad">
-              <small>ACADEMIC METHODOLOGY</small>
-              <h2>Key Engineering Insights & Viva Defense Notes</h2>
-              <div className="callout" style={{ marginTop: "10px" }}>
-                <b>1. Why Transfer Learning with ImageNet Pretraining?</b>
-                <p>
-                  Training deep convolutional networks like ResNet50 from scratch requires hundreds of thousands of images.
-                  With only 1,457 images in ACNE04, ImageNet initialization provides generic low-level edge, texture, and pattern
-                  detectors that are then fine-tuned on clinical facial acne features.
-                </p>
-              </div>
-              <div className="callout">
-                <b>2. Why Accuracy Alone is Misleading</b>
-                <p>
-                  Mild and moderate acne constitute 78.6% of the dataset. A baseline model predicting only moderate could achieve high raw accuracy.
-                  Reporting Balanced Accuracy (61.20%) and Macro F1 (58.98%) ensures all four severity levels are weighed equally.
-                </p>
-              </div>
-              <div className="callout">
-                <b>3. Calibration & Softmax Confidence Notice</b>
-                <p>
-                  The model demonstrates an Expected Calibration Error (ECE) of 0.0704. Softmax percentages represent relative model activation
-                  confidence rather than absolute medical probabilities.
-                </p>
-              </div>
-            </section>
+                  {/* Additional aggregate metrics */}
+                  <div className="eval-grid" style={{ marginTop: "10px" }}>
+                    <div className="eval-card">
+                      <small>MACRO PRECISION</small>
+                      <b>{pct(rpt.macro_precision)}</b>
+                    </div>
+                    <div className="eval-card">
+                      <small>MACRO RECALL</small>
+                      <b>{pct(rpt.macro_recall)}</b>
+                    </div>
+                    <div className="eval-card">
+                      <small>WEIGHTED F1</small>
+                      <b>{pct(rpt.weighted_f1)}</b>
+                    </div>
+                    <div className="eval-card">
+                      <small>CALIBRATION (ECE)</small>
+                      <b>
+                        {rpt.expected_calibration_error != null
+                          ? rpt.expected_calibration_error.toFixed(4)
+                          : "—"}
+                      </b>
+                      <p>Expected Calibration Error</p>
+                    </div>
+                  </div>
+
+                  {/* Dataset Breakdown Panel */}
+                  <section className="panel pad">
+                    <small>DATASET &amp; SPLIT METHODOLOGY</small>
+                    <h2>ACNE04 Dataset Specifications</h2>
+                    <p>
+                      ACNE04 contains clinical face images graded into four
+                      ordinal severity levels: mild, moderate, severe, and very
+                      severe.
+                    </p>
+                    <div className="stats" style={{ marginTop: "15px" }}>
+                      <article>
+                        <small>TRAINING SPLIT</small>
+                        <b>{splits.train != null ? splits.train : "—"}</b>
+                        <p>Fine-tuning partition</p>
+                      </article>
+                      <article>
+                        <small>VALIDATION SPLIT</small>
+                        <b>
+                          {splits.validation != null ? splits.validation : "—"}
+                        </b>
+                        <p>Stratified model selection</p>
+                      </article>
+                      <article>
+                        <small>TEST SPLIT</small>
+                        <b>{splits.test != null ? splits.test : "—"}</b>
+                        <p>Final evaluation</p>
+                      </article>
+                    </div>
+                    <p className="hint" style={{ marginTop: "15px" }}>
+                      Experiment: <strong>{evalData.experiment_id}</strong>{" "}
+                      &middot; Model: {evalData.model}
+                    </p>
+                  </section>
+
+                  {/* Per-Class Performance Table */}
+                  {Object.keys(classMetrics).length > 0 && (
+                    <section className="panel pad">
+                      <small>DETAILED CLASSIFICATION REPORT</small>
+                      <h2>Per-Class Precision, Recall &amp; F1 Scores</h2>
+                      <table className="eval-table">
+                        <thead>
+                          <tr>
+                            <th>Severity Class</th>
+                            <th>Precision</th>
+                            <th>Recall</th>
+                            <th>F1-Score</th>
+                            <th>Test Support</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(classes.length > 0
+                            ? classes
+                            : Object.keys(classMetrics)
+                          ).map((cls) => {
+                            const m = classMetrics[cls] || {};
+                            const badgeClass =
+                              cls === "mild"
+                                ? "badge-mild"
+                                : cls === "moderate"
+                                ? "badge-moderate"
+                                : cls === "severe"
+                                ? "badge-severe"
+                                : "badge-very-severe";
+                            const f1val =
+                              m.f1 != null
+                                ? m.f1
+                                : m.f1_score != null
+                                ? m.f1_score
+                                : null;
+                            return (
+                              <tr key={cls}>
+                                <td>
+                                  <span
+                                    className={`eval-badge ${badgeClass}`}
+                                  >
+                                    {cls}
+                                  </span>
+                                </td>
+                                <td>
+                                  <b>
+                                    {m.precision != null
+                                      ? (m.precision * 100).toFixed(1) + "%"
+                                      : "—"}
+                                  </b>
+                                </td>
+                                <td>
+                                  {m.recall != null
+                                    ? (m.recall * 100).toFixed(1) + "%"
+                                    : "—"}
+                                </td>
+                                <td>
+                                  {f1val != null ? f1val.toFixed(4) : "—"}
+                                </td>
+                                <td>
+                                  {m.support != null
+                                    ? `${m.support} images`
+                                    : "—"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          <tr
+                            style={{
+                              background: "#f8f9f2",
+                              fontWeight: 700,
+                            }}
+                          >
+                            <td>Macro Average</td>
+                            <td>{pct(rpt.macro_precision)}</td>
+                            <td>{pct(rpt.macro_recall)}</td>
+                            <td>{pct(rpt.macro_f1)}</td>
+                            <td>
+                              {totalSamples != null
+                                ? `${totalSamples} images`
+                                : "—"}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </section>
+                  )}
+
+                  {/* Confusion Matrix */}
+                  {cm.length > 0 && classes.length > 0 && (
+                    <section className="panel pad">
+                      <small>ERROR ANALYSIS &amp; ADJACENCY</small>
+                      <h2>Test Set Confusion Matrix</h2>
+                      <p>
+                        In dermatological severity scoring, misclassifications
+                        between adjacent grades (e.g. mild vs moderate) are
+                        clinically expected; extreme errors rarely occur.
+                      </p>
+                      <div className="cm-wrapper">
+                        <table className="cm-table">
+                          <thead>
+                            <tr>
+                              <th
+                                rowSpan="2"
+                                className="cm-row-label"
+                                style={{ verticalAlign: "bottom" }}
+                              >
+                                True Severity \ Predicted
+                              </th>
+                              <th
+                                colSpan={classes.length}
+                                className="cm-group-header"
+                              >
+                                Predicted Severity Class &rarr;
+                              </th>
+                            </tr>
+                            <tr>
+                              {classes.map((c) => (
+                                <th key={c}>{c}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {cm.map((row, ri) => {
+                              const rowTotal = row.reduce(
+                                (a, v) => a + v,
+                                0
+                              );
+                              return (
+                                <tr key={ri}>
+                                  <th className="cm-row-label">
+                                    {classes[ri]}
+                                    {rowTotal > 0 ? ` (${rowTotal})` : ""}
+                                  </th>
+                                  {row.map((cell, ci) => (
+                                    <td
+                                      key={ci}
+                                      className={
+                                        ri === ci ? "cm-diag" : "cm-off"
+                                      }
+                                    >
+                                      {cell}
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+
+                        <div className="cm-legend">
+                          <div className="cm-legend-item">
+                            <span className="cm-swatch cm-swatch-diag" />
+                            <span>
+                              <b>Diagonal (Green):</b> Correctly classified (
+                              {diagSum}
+                              {totalSamples != null
+                                ? ` / ${totalSamples}`
+                                : ""}
+                              {rpt.accuracy != null
+                                ? ` = ${(rpt.accuracy * 100).toFixed(2)}%`
+                                : ""}
+                              )
+                            </span>
+                          </div>
+                          <div className="cm-legend-item">
+                            <span className="cm-swatch cm-swatch-off" />
+                            <span>
+                              <b>Off-Diagonal:</b> Misclassifications
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="hint" style={{ marginTop: "12px" }}>
+                        Evaluated on{" "}
+                        {totalSamples != null ? totalSamples : "—"} test
+                        photographs (experiment: {evalData.experiment_id}).
+                      </p>
+                    </section>
+                  )}
+
+                  {/* Academic Discussion */}
+                  <section className="panel pad">
+                    <small>ACADEMIC METHODOLOGY</small>
+                    <h2>Key Engineering Insights &amp; Viva Defense Notes</h2>
+                    <div className="callout" style={{ marginTop: "10px" }}>
+                      <b>1. Why Transfer Learning with ImageNet Pretraining?</b>
+                      <p>
+                        Training deep convolutional networks like ResNet50 from
+                        scratch requires hundreds of thousands of images. With
+                        the small ACNE04 corpus, ImageNet initialization
+                        provides generic low-level feature detectors that are
+                        then fine-tuned on clinical facial acne features.
+                      </p>
+                    </div>
+                    <div className="callout">
+                      <b>2. Why Accuracy Alone is Misleading</b>
+                      <p>
+                        Mild and moderate acne dominate the dataset. Balanced
+                        Accuracy and Macro F1 weight all four severity levels
+                        equally, exposing performance on minority classes like
+                        severe and very severe.
+                      </p>
+                    </div>
+                    <div className="callout">
+                      <b>3. Calibration &amp; Softmax Confidence Notice</b>
+                      <p>
+                        {rpt.expected_calibration_error != null
+                          ? `ECE: ${rpt.expected_calibration_error.toFixed(4)}.`
+                          : "ECE not included in this evaluation report."}{" "}
+                        Softmax percentages represent relative model activation
+                        confidence, not absolute medical probabilities.
+                      </p>
+                    </div>
+                  </section>
+                </>
+              );
+            })()}
           </>
         )}
 

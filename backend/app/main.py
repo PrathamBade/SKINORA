@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from PIL import Image, ImageStat, UnidentifiedImageError
-from .acne_model import get_latest_evaluation, model_status, predict_acne
+from .acne_model import get_latest_evaluation, model_status, predict_acne, _validate_experiment_path
 
 DB_PATH = Path(__file__).resolve().parent.parent / "skinora.db"
 EXPERIMENTS_DIR = Path(__file__).resolve().parent.parent / "experiments"
@@ -78,14 +78,17 @@ def get_model_status():
 
 
 @app.get("/api/model-evaluation")
-def get_evaluation():
-    return get_latest_evaluation()
+def get_evaluation(experiment_id: Optional[str] = None):
+    return get_latest_evaluation(experiment_id=experiment_id)
 
 
 @app.get("/api/model-evaluation/confusion-matrix")
 def get_confusion_matrix_plot(experiment_id: Optional[str] = None):
     if experiment_id:
-        p = EXPERIMENTS_DIR / experiment_id / "confusion_matrix.png"
+        exp_dir = _validate_experiment_path(experiment_id)
+        if exp_dir is None:
+            raise HTTPException(400, "Invalid experiment identifier.")
+        p = exp_dir / "confusion_matrix.png"
     else:
         candidates = list(EXPERIMENTS_DIR.glob("*/confusion_matrix.png"))
         candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
@@ -99,7 +102,10 @@ def get_confusion_matrix_plot(experiment_id: Optional[str] = None):
 @app.get("/api/model-evaluation/training-curves")
 def get_training_curves_plot(experiment_id: Optional[str] = None):
     if experiment_id:
-        p = EXPERIMENTS_DIR / experiment_id / "training_curves.png"
+        exp_dir = _validate_experiment_path(experiment_id)
+        if exp_dir is None:
+            raise HTTPException(400, "Invalid experiment identifier.")
+        p = exp_dir / "training_curves.png"
     else:
         candidates = list(EXPERIMENTS_DIR.glob("*/training_curves.png"))
         candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
