@@ -1,5 +1,6 @@
 {
   "model": "ResNet50",
+  "experiment_id": "baseline_resnet50",
   "primary_dataset": "ACNE04",
   "pretraining": "ImageNet-1K",
   "classes": [
@@ -8,13 +9,61 @@
     "severe",
     "very_severe"
   ],
-  "acne04_train_images": 990,
-  "acne04_validation_images": 175,
-  "acne04_test_images": 292,
-  "extra_compatible_train_images": 0,
-  "extra_compatible_validation_images": 0,
-  "best_validation_accuracy": 0.7429,
-  "test_accuracy": 0.6267,
-  "test_loss": 0.843,
-  "checkpoint": "C:\\Users\\Aakanksha\\Downloads\\Skinora\\backend\\models\\acne_resnet50.pth"
+  "dataset_split_sizes": {
+    "train_images": 990,
+    "validation_images": 175,
+    "test_images": 292
+  },
+  "validation_metrics": {
+    "best_validation_accuracy": 0.7257,
+    "best_validation_macro_f1": 0.7257
+  },
+  "test_metrics": {
+    "test_accuracy": 0.6130,
+    "test_accuracy_percent": 61.30,
+    "balanced_accuracy": 0.6120,
+    "macro_precision": 0.5758,
+    "macro_recall": 0.6120,
+    "macro_f1": 0.5898,
+    "weighted_f1": 0.6165,
+    "cross_entropy_loss": 0.8603,
+    "expected_calibration_error": 0.0704,
+    "mean_confidence": 0.6719
+  },
+  "class_metrics": {
+    "mild": {
+      "precision": 0.7033,
+      "recall": 0.6214,
+      "f1_score": 0.6598,
+      "support": 103
+    },
+    "moderate": {
+      "precision": 0.6452,
+      "recall": 0.6299,
+      "f1_score": 0.6375,
+      "support": 127
+    },
+    "severe": {
+      "precision": 0.3182,
+      "recall": 0.3889,
+      "f1_score": 0.3500,
+      "support": 36
+    },
+    "very_severe": {
+      "precision": 0.6364,
+      "recall": 0.8077,
+      "f1_score": 0.7119,
+      "support": 26
+    }
+  },
+  "confusion_matrix": [
+    [64, 30,  8,  1],
+    [26, 80, 17,  4],
+    [ 1, 14, 14,  7],
+    [ 0,  0,  5, 21]
+  ],
+  "best_validation_accuracy": 0.7257,
+  "test_accuracy": 0.6130,
+  "test_loss": 0.8603,
+  "checkpoint": "C:\\Users\\NuKe\\OneDrive\\Desktop\\Skinora_updated\\Skinora\\backend\\models\\acne_resnet50.pth"
 }
