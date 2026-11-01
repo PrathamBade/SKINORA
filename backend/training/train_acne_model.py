@@ -32,23 +32,42 @@ try:
     )
     from .evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
     from .model import build_model, get_parameter_groups, save_checkpoint
-except ImportError:
+except (ImportError, ValueError):
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from Skinora.backend.training.config import (
-        CLASSES,
-        CLASS_TO_ID,
-        EXPERIMENTS_DIR,
-        IMAGE_SIZE,
-        IMAGENET_MEAN,
-        IMAGENET_STD,
-        MODELS_DIR,
-        TrainingConfig,
-        get_device,
-        set_seed,
-    )
-    from Skinora.backend.training.evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
-    from Skinora.backend.training.model import build_model, get_parameter_groups, save_checkpoint
+    this_dir = Path(__file__).resolve().parent
+    for p in [this_dir, this_dir.parent, this_dir.parent.parent]:
+        if str(p) not in sys.path:
+            sys.path.insert(0, str(p))
+    try:
+        from training.config import (
+            CLASSES,
+            CLASS_TO_ID,
+            EXPERIMENTS_DIR,
+            IMAGE_SIZE,
+            IMAGENET_MEAN,
+            IMAGENET_STD,
+            MODELS_DIR,
+            TrainingConfig,
+            get_device,
+            set_seed,
+        )
+        from training.evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
+        from training.model import build_model, get_parameter_groups, save_checkpoint
+    except ImportError:
+        from config import (
+            CLASSES,
+            CLASS_TO_ID,
+            EXPERIMENTS_DIR,
+            IMAGE_SIZE,
+            IMAGENET_MEAN,
+            IMAGENET_STD,
+            MODELS_DIR,
+            TrainingConfig,
+            get_device,
+            set_seed,
+        )
+        from evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
+        from model import build_model, get_parameter_groups, save_checkpoint
 
 
 class ACNE04Dataset(Dataset):
@@ -290,8 +309,27 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
     history: List[Dict[str, Any]] = []
     best_selection_score = -1.0
     best_epoch = 0
+    best_val_acc = 0.0
+    best_val_macro_f1 = 0.0
+    best_val_loss = 0.0
     no_improve = 0
     best_checkpoint_path = output_dir / f"{config.experiment_id}_best.pth"
+
+    # Save exact split indices manifest for 100% reproducibility
+    splits_manifest = {
+        "seed": config.seed,
+        "val_split_ratio": config.val_split_ratio,
+        "train_indices": train_base,
+        "val_indices": val_rows,
+        "test_indices": test_rows,
+        "class_distributions": {
+            "train": train_counts.tolist(),
+            "validation": val_counts.tolist(),
+            "test": test_counts.tolist(),
+        },
+    }
+    with open(output_dir / "splits_manifest.json", "w", encoding="utf-8") as f:
+        json.dump(splits_manifest, f, indent=2)
 
     print("\nStarting training epochs...")
     for epoch in range(1, config.epochs + 1):
@@ -367,6 +405,9 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
         if metric_val > best_selection_score:
             best_selection_score = metric_val
             best_epoch = epoch
+            best_val_acc = val_acc
+            best_val_macro_f1 = val_macro_f1
+            best_val_loss = val_loss
             no_improve = 0
 
             save_checkpoint(
@@ -419,6 +460,9 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
         "best_epoch": best_epoch,
         "model_selection_metric": config.model_selection_metric,
         "best_validation_score": round(best_selection_score, 4),
+        "best_validation_accuracy": round(best_val_acc, 4),
+        "best_validation_macro_f1": round(best_val_macro_f1, 4),
+        "best_validation_loss": round(best_val_loss, 4),
         "split_counts": {
             "train": len(train_base) + len(extra_train),
             "validation": len(val_rows) + len(extra_val),
@@ -499,7 +543,11 @@ def main():
 
     if args.set_as_production:
         ckpt_src = Path(manifest["checkpoint_path"])
-        prod_ckpt = MODELS_DIR / "acne_resnet50.pth"
+        arch = manifest.get("architecture", "resnet50").lower()
+        if arch == "resnet50":
+            prod_ckpt = MODELS_DIR / "acne_resnet50.pth"
+        else:
+            prod_ckpt = MODELS_DIR / f"acne_{arch}.pth"
         prod_metrics = MODELS_DIR / "training_metrics.json"
 
         # Copy checkpoint
@@ -513,14 +561,28 @@ def main():
             "primary_dataset": "ACNE04",
             "pretraining": manifest["pretrained_weights"],
             "classes": CLASSES,
-            "acne04_train_images": manifest["split_counts"]["train"],
-            "acne04_validation_images": manifest["split_counts"]["validation"],
-            "acne04_test_images": manifest["split_counts"]["test"],
-            "best_validation_accuracy": manifest.get("best_validation_score"),
-            "best_validation_macro_f1": manifest.get("best_validation_score"),
+            "dataset_split_sizes": {
+                "train_images": manifest["split_counts"]["train"],
+                "validation_images": manifest["split_counts"]["validation"],
+                "test_images": manifest["split_counts"]["test"],
+            },
+            "validation_metrics": {
+                "best_validation_accuracy": manifest.get("best_validation_accuracy", manifest.get("best_validation_score")),
+                "best_validation_macro_f1": manifest.get("best_validation_macro_f1", manifest.get("best_validation_score")),
+            },
+            "test_metrics": {
+                "test_accuracy": manifest["test_metrics"]["accuracy"],
+                "test_accuracy_percent": round(manifest["test_metrics"]["accuracy"] * 100, 2),
+                "balanced_accuracy": manifest["test_metrics"]["balanced_accuracy"],
+                "macro_precision": manifest["test_metrics"]["macro_precision"],
+                "macro_recall": manifest["test_metrics"]["macro_recall"],
+                "macro_f1": manifest["test_metrics"]["macro_f1"],
+                "weighted_f1": manifest["test_metrics"]["weighted_f1"],
+                "cross_entropy_loss": manifest["test_metrics"]["cross_entropy_loss"],
+                "expected_calibration_error": manifest["test_metrics"]["expected_calibration_error"],
+            },
+            "best_validation_accuracy": manifest.get("best_validation_accuracy", manifest.get("best_validation_score")),
             "test_accuracy": manifest["test_metrics"]["accuracy"],
-            "test_balanced_accuracy": manifest["test_metrics"]["balanced_accuracy"],
-            "test_macro_f1": manifest["test_metrics"]["macro_f1"],
             "test_loss": manifest["test_metrics"]["cross_entropy_loss"],
             "checkpoint": str(prod_ckpt),
             "updated_at": manifest["timestamp"],

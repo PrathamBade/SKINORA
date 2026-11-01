@@ -27,11 +27,18 @@ from torchvision import transforms
 try:
     from .config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
     from .model import load_model_from_checkpoint
-except ImportError:
+except (ImportError, ValueError):
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from Skinora.backend.training.config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
-    from Skinora.backend.training.model import load_model_from_checkpoint
+    this_dir = Path(__file__).resolve().parent
+    for p in [this_dir, this_dir.parent, this_dir.parent.parent]:
+        if str(p) not in sys.path:
+            sys.path.insert(0, str(p))
+    try:
+        from training.config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
+        from training.model import load_model_from_checkpoint
+    except ImportError:
+        from config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
+        from model import load_model_from_checkpoint
 
 
 def get_eval_transform(image_size: int = IMAGE_SIZE) -> transforms.Compose:
@@ -77,7 +84,16 @@ def plot_confusion_matrix(
 ) -> None:
     """Render and save publication-quality confusion matrix image."""
     fig, ax = plt.subplots(figsize=(6.5, 5.5), dpi=150)
-    display_cm = cm.astype(float) / cm.sum(axis=1)[:, np.newaxis] if normalize else cm
+    if normalize:
+        row_sums = cm.sum(axis=1, keepdims=True).astype(float)
+        display_cm = np.divide(
+            cm.astype(float),
+            row_sums,
+            out=np.zeros_like(cm, dtype=float),
+            where=(row_sums > 0),
+        )
+    else:
+        display_cm = cm
     cmap = plt.cm.Blues if not normalize else plt.cm.YlGnBu
 
     im = ax.imshow(display_cm, interpolation="nearest", cmap=cmap)
@@ -165,10 +181,21 @@ def evaluate_model_on_split(
 
     ds = load_dataset("Layered-Labs/ACNE04", split="train")
     split_values = np.asarray(ds["split"])
-    indices = [
-        i for i, val in enumerate(split_values)
-        if str(val).lower() == split_name.lower()
-    ]
+    if split_name.lower() in {"val", "validation"}:
+        from sklearn.model_selection import train_test_split
+        train_indices = [
+            i for i, val in enumerate(split_values) if str(val).lower() == "train"
+        ]
+        train_labels = np.asarray(ds["level"], dtype=np.int64)[train_indices]
+        _, val_idx = train_test_split(
+            train_indices, test_size=0.15, random_state=42, stratify=train_labels
+        )
+        indices = val_idx
+    else:
+        indices = [
+            i for i, val in enumerate(split_values)
+            if str(val).lower() == split_name.lower()
+        ]
 
     if not indices:
         raise ValueError(f"No samples found for split '{split_name}' in ACNE04 dataset.")
@@ -200,6 +227,9 @@ def evaluate_model_on_split(
     y_true_arr = np.array(y_true)
     y_pred_arr = np.array(y_pred)
     y_probs_arr = np.array(y_probs)
+    # Normalize probabilities to sum strictly to 1.0 to avoid scikit-learn log_loss warning
+    prob_sums = np.maximum(y_probs_arr.sum(axis=1, keepdims=True), 1e-12)
+    y_probs_arr = y_probs_arr / prob_sums
     conf_arr = np.array(confidences)
 
     # Core metrics
