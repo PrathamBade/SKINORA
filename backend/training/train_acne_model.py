@@ -17,20 +17,38 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-from .config import (
-    CLASSES,
-    CLASS_TO_ID,
-    EXPERIMENTS_DIR,
-    IMAGE_SIZE,
-    IMAGENET_MEAN,
-    IMAGENET_STD,
-    MODELS_DIR,
-    TrainingConfig,
-    get_device,
-    set_seed,
-)
-from .evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
-from .model import build_model, get_parameter_groups, save_checkpoint
+try:
+    from .config import (
+        CLASSES,
+        CLASS_TO_ID,
+        EXPERIMENTS_DIR,
+        IMAGE_SIZE,
+        IMAGENET_MEAN,
+        IMAGENET_STD,
+        MODELS_DIR,
+        TrainingConfig,
+        get_device,
+        set_seed,
+    )
+    from .evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
+    from .model import build_model, get_parameter_groups, save_checkpoint
+except ImportError:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from Skinora.backend.training.config import (
+        CLASSES,
+        CLASS_TO_ID,
+        EXPERIMENTS_DIR,
+        IMAGE_SIZE,
+        IMAGENET_MEAN,
+        IMAGENET_STD,
+        MODELS_DIR,
+        TrainingConfig,
+        get_device,
+        set_seed,
+    )
+    from Skinora.backend.training.evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
+    from Skinora.backend.training.model import build_model, get_parameter_groups, save_checkpoint
 
 
 class ACNE04Dataset(Dataset):

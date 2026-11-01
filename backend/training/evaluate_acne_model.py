@@ -24,8 +24,14 @@ from sklearn.metrics import (
 )
 from torchvision import transforms
 
-from .config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
-from .model import load_model_from_checkpoint
+try:
+    from .config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
+    from .model import load_model_from_checkpoint
+except ImportError:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from Skinora.backend.training.config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
+    from Skinora.backend.training.model import load_model_from_checkpoint
 
 
 def get_eval_transform(image_size: int = IMAGE_SIZE) -> transforms.Compose:

@@ -518,6 +518,12 @@ export default function App() {
                 <p>
                   <b>Photo quality:</b> {detail.photo_quality?.summary || "No photo uploaded"}
                 </p>
+                {detail.acne_prediction?.available && (
+                  <p>
+                    <b>AI acne estimate:</b> {detail.acne_prediction.class?.replaceAll("_", " ")} (
+                    {detail.acne_prediction.confidence_percent}%)
+                  </p>
+                )}
                 <p className="hint">{detail.disclaimer}</p>
               </div>
             )}

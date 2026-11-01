@@ -49,8 +49,11 @@ def connect():
 def init_db():
     with connect() as db:
         db.execute(
-            "CREATE TABLE IF NOT EXISTS assessments (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, skin_type TEXT NOT NULL, age_range TEXT NOT NULL, concerns_json TEXT NOT NULL, sensitivity TEXT NOT NULL, concern_score INTEGER NOT NULL, photo_quality_json TEXT NOT NULL, profile_json TEXT NOT NULL, routine_json TEXT NOT NULL, recommendations_json TEXT NOT NULL, disclaimer TEXT NOT NULL)"
+            "CREATE TABLE IF NOT EXISTS assessments (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, skin_type TEXT NOT NULL, age_range TEXT NOT NULL, concerns_json TEXT NOT NULL, sensitivity TEXT NOT NULL, concern_score INTEGER NOT NULL, photo_quality_json TEXT NOT NULL, profile_json TEXT NOT NULL, routine_json TEXT NOT NULL, recommendations_json TEXT NOT NULL, disclaimer TEXT NOT NULL, acne_prediction_json TEXT)"
         )
+        cols = [col[1] for col in db.execute("PRAGMA table_info(assessments)").fetchall()]
+        if "acne_prediction_json" not in cols:
+            db.execute("ALTER TABLE assessments ADD COLUMN acne_prediction_json TEXT")
         db.commit()
 
 
@@ -264,7 +267,7 @@ async def analyze(
     created = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with connect() as db:
         cur = db.execute(
-            "INSERT INTO assessments(created_at,skin_type,age_range,concerns_json,sensitivity,concern_score,photo_quality_json,profile_json,routine_json,recommendations_json,disclaimer) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO assessments(created_at,skin_type,age_range,concerns_json,sensitivity,concern_score,photo_quality_json,profile_json,routine_json,recommendations_json,disclaimer,acne_prediction_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 created,
                 skin_type,
@@ -277,6 +280,7 @@ async def analyze(
                 json.dumps(p["routine"]),
                 json.dumps(p["recommendations"]),
                 p["disclaimer"],
+                json.dumps(acne_prediction),
             ),
         )
         db.commit()
@@ -317,6 +321,12 @@ def assessment(aid: int):
     if row is None:
         raise HTTPException(404, "Assessment not found.")
     x = dict(row)
-    for k in ["concerns_json", "photo_quality_json", "profile_json", "routine_json", "recommendations_json"]:
-        x[k.replace("_json", "")] = json.loads(x.pop(k))
+    for k in ["concerns_json", "photo_quality_json", "profile_json", "routine_json", "recommendations_json", "acne_prediction_json"]:
+        if k in x and x[k]:
+            try:
+                x[k.replace("_json", "")] = json.loads(x.pop(k))
+            except Exception:
+                x[k.replace("_json", "")] = None
+        elif k in x:
+            x.pop(k)
     return x
