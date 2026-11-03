@@ -4,7 +4,10 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from Skinora.backend.app.main import app
+try:
+    from Skinora.backend.app.main import app
+except ImportError:
+    from backend.app.main import app
 
 client = TestClient(app)
 

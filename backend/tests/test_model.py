@@ -5,13 +5,22 @@ import pytest
 import torch
 import torch.nn as nn
 
-from Skinora.backend.training.config import CLASSES, TrainingConfig
-from Skinora.backend.training.model import (
-    build_model,
-    get_parameter_groups,
-    load_model_from_checkpoint,
-    save_checkpoint,
-)
+try:
+    from Skinora.backend.training.config import CLASSES, TrainingConfig
+    from Skinora.backend.training.model import (
+        build_model,
+        get_parameter_groups,
+        load_model_from_checkpoint,
+        save_checkpoint,
+    )
+except ImportError:
+    from backend.training.config import CLASSES, TrainingConfig
+    from backend.training.model import (
+        build_model,
+        get_parameter_groups,
+        load_model_from_checkpoint,
+        save_checkpoint,
+    )
 
 
 def test_build_model_frozen():

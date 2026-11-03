@@ -25,7 +25,7 @@ from sklearn.metrics import (
 from torchvision import transforms
 
 try:
-    from .config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
+    from .config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, MODELS_DIR, get_device
     from .model import load_model_from_checkpoint
 except (ImportError, ValueError):
     import sys
@@ -34,10 +34,10 @@ except (ImportError, ValueError):
         if str(p) not in sys.path:
             sys.path.insert(0, str(p))
     try:
-        from training.config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
+        from training.config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, MODELS_DIR, get_device
         from training.model import load_model_from_checkpoint
     except ImportError:
-        from config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, get_device
+        from config import CLASSES, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, MODELS_DIR, get_device
         from model import load_model_from_checkpoint
 
 
@@ -172,6 +172,8 @@ def evaluate_model_on_split(
     device: Optional[torch.device] = None,
     output_dir: Optional[Path] = None,
     history: Optional[List[Dict[str, Any]]] = None,
+    split_manifest_path: Optional[Path] = None,
+    protocol: str = "clean",
 ) -> Dict[str, Any]:
     """Evaluate model on a designated split and return full academic metrics report."""
     if device is None:
@@ -181,7 +183,20 @@ def evaluate_model_on_split(
 
     ds = load_dataset("Layered-Labs/ACNE04", split="train")
     split_values = np.asarray(ds["split"])
-    if split_name.lower() in {"val", "validation"}:
+
+    manifest_file = split_manifest_path or (MODELS_DIR / "clean_splits_manifest.json")
+    used_manifest = False
+    is_leakage_free = False
+
+    if protocol.lower() == "clean" and manifest_file.exists():
+        with open(manifest_file, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        split_key = "validation" if split_name.lower() in {"val", "validation"} else split_name.lower()
+        indices = manifest.get("splits", {}).get(split_key, [])
+        used_manifest = True
+        is_leakage_free = bool(manifest.get("integrity_verification", {}).get("cross_split_leakage_detected") is False)
+        print(f"Using clean split manifest from {manifest_file} for split '{split_key}' ({len(indices)} samples, leakage_free={is_leakage_free})")
+    elif split_name.lower() in {"val", "validation"}:
         from sklearn.model_selection import train_test_split
         train_indices = [
             i for i, val in enumerate(split_values) if str(val).lower() == "train"
@@ -266,6 +281,9 @@ def evaluate_model_on_split(
 
     report = {
         "split": split_name,
+        "protocol": protocol,
+        "leakage_free": is_leakage_free,
+        "split_manifest": str(manifest_file) if used_manifest else None,
         "sample_count": len(indices),
         "accuracy": round(acc, 4),
         "balanced_accuracy": round(bal_acc, 4),
@@ -287,12 +305,13 @@ def evaluate_model_on_split(
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # JSON metrics
-        metrics_file = output_dir / f"evaluation_{split_name}.json"
+        suffix = f"_{protocol}" if protocol != "clean" else ""
+        metrics_file = output_dir / f"evaluation_{split_name}{suffix}.json"
         with open(metrics_file, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2)
 
         # CSV classification report
-        csv_file = output_dir / f"classification_report_{split_name}.csv"
+        csv_file = output_dir / f"classification_report_{split_name}{suffix}.csv"
         with open(csv_file, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["class", "precision", "recall", "f1_score", "support"])
@@ -305,12 +324,12 @@ def evaluate_model_on_split(
 
         # Raw & Normalized Confusion Matrix plots
         plot_confusion_matrix(
-            cm, CLASSES, output_dir / "confusion_matrix.png",
-            title=f"ACNE04 {split_name.capitalize()} Set Confusion Matrix",
+            cm, CLASSES, output_dir / f"confusion_matrix{suffix}.png",
+            title=f"ACNE04 {split_name.capitalize()} Set Confusion Matrix ({protocol.capitalize()})",
         )
         plot_confusion_matrix(
-            cm, CLASSES, output_dir / "confusion_matrix_normalized.png",
-            title=f"ACNE04 {split_name.capitalize()} Set Normalized Confusion Matrix",
+            cm, CLASSES, output_dir / f"confusion_matrix_normalized{suffix}.png",
+            title=f"ACNE04 {split_name.capitalize()} Set Normalized Confusion Matrix ({protocol.capitalize()})",
             normalize=True,
         )
 
@@ -325,6 +344,8 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate Skinora Acne Model")
     parser.add_argument("--checkpoint", type=Path, required=True, help="Path to .pth checkpoint")
     parser.add_argument("--split", type=str, default="test", choices=["train", "test", "val"], help="Dataset split")
+    parser.add_argument("--protocol", type=str, default="clean", choices=["clean", "legacy"], help="Protocol: clean (leakage-free manifest) or legacy (raw ACNE04 split)")
+    parser.add_argument("--split-manifest", type=Path, default=None, help="Path to clean_splits_manifest.json")
     parser.add_argument("--output-dir", type=Path, default=None, help="Directory to save report and plots")
     args = parser.parse_args()
 
@@ -334,13 +355,19 @@ def main():
     print(f"Model architecture: {metadata.get('architecture', 'ResNet50')}")
 
     out = args.output_dir or args.checkpoint.parent
-    print(f"Evaluating on ACNE04 '{args.split}' split...")
+    print(f"Evaluating on ACNE04 '{args.split}' split (protocol={args.protocol})...")
     report = evaluate_model_on_split(
-        model, split_name=args.split, device=device, output_dir=out
+        model,
+        split_name=args.split,
+        device=device,
+        output_dir=out,
+        split_manifest_path=args.split_manifest,
+        protocol=args.protocol,
     )
 
     print("\n--- EVALUATION SUMMARY ---")
     print(f"Split:               {report['split']} ({report['sample_count']} images)")
+    print(f"Protocol:            {report['protocol']} (leakage_free={report['leakage_free']})")
     print(f"Accuracy:            {report['accuracy'] * 100:.2f}%")
     print(f"Balanced Accuracy:   {report['balanced_accuracy'] * 100:.2f}%")
     print(f"Macro F1 Score:      {report['macro_f1'] * 100:.2f}%")

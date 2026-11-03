@@ -23,6 +23,8 @@ dist/
 
 # Downloaded datasets and caches
 data/
+!backend/data/
+!backend/data/**
 datasets/
 .cache/
 huggingface_cache/

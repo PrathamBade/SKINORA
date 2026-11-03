@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
+import CameraCapture from "./components/CameraCapture";
+import ImageCropperModal from "./components/ImageCropperModal";
 
 const API = "http://127.0.0.1:8000";
 const concernsList = [
@@ -58,6 +60,9 @@ export default function App() {
   const [modelStatus, setModelStatus] = useState(null);
   const [evalData, setEvalData] = useState(null);
   const [evalLoading, setEvalLoading] = useState(false);
+  const [photoSource, setPhotoSource] = useState("upload");
+  const [pendingCropFile, setPendingCropFile] = useState(null);
+  const [rawUncroppedFile, setRawUncroppedFile] = useState(null);
 
   const ref = useRef(null);
 
@@ -74,15 +79,25 @@ export default function App() {
   async function fetchEvaluation() {
     setEvalLoading(true);
     setEvalData(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     try {
-      let r = await fetch(API + "/api/model-evaluation");
+      let r = await fetch(API + "/api/model-evaluation", { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (r.ok) {
         setEvalData(await r.json());
       } else {
         setEvalData({ available: false, message: "API returned " + r.status });
       }
-    } catch {
-      setEvalData({ available: false, message: "Could not reach the backend." });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const isTimeout = err && err.name === "AbortError";
+      setEvalData({
+        available: false,
+        message: isTimeout
+          ? "Request timed out after 6 seconds. Ensure the FastAPI backend server is running at " + API
+          : "Could not reach the backend. Ensure the FastAPI backend server is running at " + API,
+      });
     } finally {
       setEvalLoading(false);
     }
@@ -101,10 +116,32 @@ export default function App() {
     if (!f) return;
     if (!f.type.startsWith("image/")) return setError("Choose an image file.");
     if (f.size > 8 * 1024 * 1024) return setError("Image must be under 8 MB.");
-    if (preview) URL.revokeObjectURL(preview);
-    setPhoto(f);
-    setPreview(URL.createObjectURL(f));
     setError("");
+    setRawUncroppedFile(f);
+    setPendingCropFile(f);
+  }
+
+  function handleCameraCapture(f) {
+    setError("");
+    setRawUncroppedFile(f);
+    setPendingCropFile(f);
+    setPhotoSource("upload");
+  }
+
+  function handleConfirmCrop(cropped) {
+    if (preview) URL.revokeObjectURL(preview);
+    setPhoto(cropped);
+    setPreview(URL.createObjectURL(cropped));
+    setPendingCropFile(null);
+  }
+
+  function handleCancelCrop() {
+    if (rawUncroppedFile && !photo) {
+      if (preview) URL.revokeObjectURL(preview);
+      setPhoto(rawUncroppedFile);
+      setPreview(URL.createObjectURL(rawUncroppedFile));
+    }
+    setPendingCropFile(null);
   }
 
   async function submit() {
@@ -406,36 +443,80 @@ export default function App() {
                   <p>Optional photo analyzed by our ACNE04 fine-tuned ResNet50 model.</p>
                 </div>
               </div>
-              <input
-                ref={ref}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                hidden
-                onChange={(e) => pick(e.target.files?.[0])}
-              />
-              <button className="upload" onClick={() => ref.current?.click()}>
-                {preview ? (
-                  <img src={preview} alt="Selected preview" />
-                ) : (
-                  <b className="upload-icon">↑</b>
-                )}
-                <span>
-                  <b>{photo ? photo.name : "Choose a face photo"}</b>
-                  <small>JPG, PNG or WEBP · max 8 MB</small>
-                </span>
-                <small>Browse</small>
-              </button>
-              {photo && (
+              {/* Image Source Selection: Upload vs Camera */}
+              <div className="source-tabs">
                 <button
-                  className="link"
-                  onClick={() => {
-                    setPhoto(null);
-                    setPreview("");
-                    if (ref.current) ref.current.value = "";
-                  }}
+                  type="button"
+                  className={`source-tab-btn ${photoSource === "upload" ? "active" : ""}`}
+                  onClick={() => setPhotoSource("upload")}
                 >
-                  Remove photo
+                  📁 Upload File
                 </button>
+                <button
+                  type="button"
+                  className={`source-tab-btn ${photoSource === "camera" ? "active" : ""}`}
+                  onClick={() => setPhotoSource("camera")}
+                >
+                  📷 Use Camera
+                </button>
+              </div>
+
+              {photoSource === "camera" && (
+                <CameraCapture
+                  onCapture={handleCameraCapture}
+                  onCancel={() => setPhotoSource("upload")}
+                />
+              )}
+
+              {photoSource === "upload" && (
+                <>
+                  <input
+                    ref={ref}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    hidden
+                    onChange={(e) => pick(e.target.files?.[0])}
+                  />
+                  <button className="upload" onClick={() => ref.current?.click()}>
+                    {preview ? (
+                      <img src={preview} alt="Selected preview" />
+                    ) : (
+                      <b className="upload-icon">↑</b>
+                    )}
+                    <span>
+                      <b>{photo ? photo.name : "Choose a face photo"}</b>
+                      <small>JPG, PNG or WEBP · max 8 MB</small>
+                    </span>
+                    <small>Browse</small>
+                  </button>
+                </>
+              )}
+
+              {photo && (
+                <div style={{ display: "flex", gap: "16px", marginTop: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => setPendingCropFile(rawUncroppedFile || photo)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  >
+                    ✂ Adjust / Crop Photo
+                  </button>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      setPhoto(null);
+                      setRawUncroppedFile(null);
+                      if (preview) URL.revokeObjectURL(preview);
+                      setPreview("");
+                      if (ref.current) ref.current.value = "";
+                    }}
+                    style={{ color: "#a83828" }}
+                  >
+                    Remove photo
+                  </button>
+                </div>
               )}
               <button className="submit" disabled={busy} onClick={submit}>
                 {busy ? "Assessing…" : "Save assessment & build plan"} ↗
@@ -561,12 +642,19 @@ export default function App() {
             {!evalLoading && evalData && !evalData.available && (
               <section className="panel pad">
                 <small>EVALUATION UNAVAILABLE</small>
-                <h2>No evaluation report found</h2>
+                <h2>Evaluation data not loaded</h2>
                 <p>
                   {evalData.message ||
                     "Run backend/training/evaluate_acne_model.py to generate evaluation artifacts."}
                 </p>
-                <p className="hint">
+                <button
+                  className="btn"
+                  onClick={fetchEvaluation}
+                  style={{ marginTop: "14px" }}
+                >
+                  Retry Loading Evaluation
+                </button>
+                <p className="hint" style={{ marginTop: "12px" }}>
                   The AI Model Evaluation page reads from{" "}
                   <code>experiments/*/evaluation_test.json</code>.
                 </p>
@@ -580,6 +668,13 @@ export default function App() {
                   Could not load evaluation data. Ensure the backend is running
                   at {API}.
                 </p>
+                <button
+                  className="btn"
+                  onClick={fetchEvaluation}
+                  style={{ marginTop: "14px" }}
+                >
+                  Retry Loading Evaluation
+                </button>
               </section>
             )}
 
@@ -1098,6 +1193,14 @@ export default function App() {
             )}
             <p className="hint">{result.disclaimer}</p>
           </section>
+        )}
+
+        {pendingCropFile && (
+          <ImageCropperModal
+            file={pendingCropFile}
+            onConfirmCrop={handleConfirmCrop}
+            onCancel={handleCancelCrop}
+          />
         )}
 
         <footer>

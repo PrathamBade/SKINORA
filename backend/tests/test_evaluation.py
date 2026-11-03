@@ -4,12 +4,20 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from Skinora.backend.training.config import CLASSES
-from Skinora.backend.training.evaluate_acne_model import (
-    compute_expected_calibration_error,
-    plot_confusion_matrix,
-    plot_training_curves,
-)
+try:
+    from Skinora.backend.training.config import CLASSES
+    from Skinora.backend.training.evaluate_acne_model import (
+        compute_expected_calibration_error,
+        plot_confusion_matrix,
+        plot_training_curves,
+    )
+except ImportError:
+    from backend.training.config import CLASSES
+    from backend.training.evaluate_acne_model import (
+        compute_expected_calibration_error,
+        plot_confusion_matrix,
+        plot_training_curves,
+    )
 
 
 def test_compute_ece():

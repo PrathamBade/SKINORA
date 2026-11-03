@@ -1,0 +1,9 @@
+class,precision,recall,f1_score,support
+mild,0.7033,0.6214,0.6598,103
+moderate,0.6452,0.6299,0.6375,127
+severe,0.3182,0.3889,0.35,36
+very_severe,0.6364,0.8077,0.7119,26
+
+macro_avg,0.5758,0.612,0.5898,292
+weighted_avg,0.6246,0.613,0.6165,292
+accuracy,,,0.613,292

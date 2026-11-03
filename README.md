@@ -8,6 +8,9 @@
 
 **Skinora** is an end-to-end full-stack AI web application designed for facial wellness check-ins, rule-based skincare guidance, and deep learning-based acne severity classification using fine-tuned **ResNet50** on the **ACNE04** clinical dataset.
 
+> [!IMPORTANT]
+> **Developer & Reviewer Handoff**: See [**`PROJECT_STATE.md`**](PROJECT_STATE.md) for the comprehensive current project state, active fine-tuning experiments (E1, E2, E3), clean split verification, AMD ROCm/WSL2 setup status, and developer handoff instructions.
+
 ---
 
 ## 🌟 Key Features
@@ -83,6 +86,7 @@ cd Skinora\backend
 ```
 
 For complete documentation:
+- 📌 [Comprehensive Project State & ML Handoff](PROJECT_STATE.md)
 - 📖 [Model Training Guide](MODEL_TRAINING_GUIDE.md)
 - 📊 [Model Evaluation Report](MODEL_EVALUATION.md)
 - 🪪 [Model Card](MODEL_CARD.md)

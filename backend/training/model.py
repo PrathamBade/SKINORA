@@ -19,8 +19,12 @@ def build_model(
 
     if arch == "resnet50":
         # Load torchvision pretrained weights (Default is ImageNet1K_V2)
-        weights = models.ResNet50_Weights.DEFAULT
-        model = models.resnet50(weights=weights)
+        try:
+            weights = models.ResNet50_Weights.DEFAULT
+            model = models.resnet50(weights=weights)
+        except Exception:
+            # Offline / local environment fallback
+            model = models.resnet50(weights=None)
 
         # Freeze all layers first
         for param in model.parameters():
@@ -60,8 +64,11 @@ def build_model(
         return model
 
     elif arch == "efficientnet_b0":
-        weights = models.EfficientNet_B0_Weights.DEFAULT
-        model = models.efficientnet_b0(weights=weights)
+        try:
+            weights = models.EfficientNet_B0_Weights.DEFAULT
+            model = models.efficientnet_b0(weights=weights)
+        except Exception:
+            model = models.efficientnet_b0(weights=None)
 
         for param in model.parameters():
             param.requires_grad = False

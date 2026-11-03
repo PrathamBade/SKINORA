@@ -1,0 +1,172 @@
+{
+  "dataset_name": "Layered-Labs/ACNE04",
+  "total_images": 1457,
+  "features_schema": {
+    "image": "Image(mode=None, decode=True)",
+    "file_name": "Value('string')",
+    "level": "Value('int32')",
+    "severity": "Value('string')",
+    "lesion_count_label": "Value('int32')",
+    "num_lesions_annotated": "Value('int32')",
+    "lesion_boxes": "{'xmin': List(Value('int32')), 'ymin': List(Value('int32')), 'xmax': List(Value('int32')), 'ymax': List(Value('int32'))}",
+    "split": "Value('string')",
+    "fold_0_split": "Value('string')",
+    "fold_1_split": "Value('string')",
+    "fold_2_split": "Value('string')",
+    "fold_3_split": "Value('string')",
+    "fold_4_split": "Value('string')"
+  },
+  "missing_values": {},
+  "dimensions_summary": {
+    "unique_resolutions_count": 112,
+    "dominant_widths": {
+      "3112": 1107,
+      "4912": 119,
+      "690": 30,
+      "5184": 19,
+      "1920": 10
+    },
+    "dominant_heights": {
+      "3456": 1126,
+      "3264": 119,
+      "920": 16,
+      "1080": 10,
+      "259": 7
+    },
+    "aspect_ratios": {
+      "0.9": 1109,
+      "1.5": 142,
+      "0.75": 71,
+      "1.33": 18,
+      "1.78": 11
+    },
+    "color_modes": {
+      "RGB": 1457
+    }
+  },
+  "label_distribution": {
+    "by_level": {
+      "0": 513,
+      "1": 633,
+      "2": 182,
+      "3": 129
+    },
+    "by_severity": {
+      "mild": 513,
+      "moderate": 633,
+      "severe": 182,
+      "very_severe": 129
+    },
+    "class_percentages": {
+      "mild": 35.21,
+      "moderate": 43.45,
+      "severe": 12.49,
+      "very_severe": 8.85
+    }
+  },
+  "original_splits": {
+    "train": 1165,
+    "test": 292
+  },
+  "official_five_folds": {
+    "fold_0": {
+      "train": 1165,
+      "test": 292
+    },
+    "fold_1": {
+      "train": 1165,
+      "test": 292
+    },
+    "fold_2": {
+      "train": 1165,
+      "test": 292
+    },
+    "fold_3": {
+      "test": 292,
+      "train": 1165
+    },
+    "fold_4": {
+      "train": 1165,
+      "test": 292
+    }
+  },
+  "annotation_consistency": {
+    "lesion_count_vs_num_annotated_mismatches": 21,
+    "sample_lesion_count_mismatches": [
+      {
+        "index": 1322,
+        "file_name": "levle3_10.jpg",
+        "lesion_count_label": 58,
+        "num_lesions_annotated": 65,
+        "diff": -7
+      },
+      {
+        "index": 1323,
+        "file_name": "levle3_100.jpg",
+        "lesion_count_label": 56,
+        "num_lesions_annotated": 58,
+        "diff": -2
+      },
+      {
+        "index": 1333,
+        "file_name": "levle3_11.jpg",
+        "lesion_count_label": 58,
+        "num_lesions_annotated": 57,
+        "diff": 1
+      },
+      {
+        "index": 1335,
+        "file_name": "levle3_111.jpg",
+        "lesion_count_label": 52,
+        "num_lesions_annotated": 62,
+        "diff": -10
+      },
+      {
+        "index": 1349,
+        "file_name": "levle3_124.jpg",
+        "lesion_count_label": 60,
+        "num_lesions_annotated": 57,
+        "diff": 3
+      }
+    ],
+    "hayashi_rule_discrepancies": 0,
+    "sample_hayashi_discrepancies": []
+  },
+  "bounding_box_audit": {
+    "total_boxes_annotated": 18983,
+    "images_with_boxes": 1457,
+    "images_with_zero_boxes": 0,
+    "invalid_coord_order": 0,
+    "out_of_bounds_coords": 0,
+    "box_count_mismatch": 0,
+    "min_lesion_area": 16,
+    "max_lesion_area": 241081
+  },
+  "duplicate_audit": {
+    "total_exact_duplicate_groups": 38,
+    "total_images_in_exact_duplicates": 76,
+    "cross_split_original_groups": 12,
+    "conflicting_label_groups": 8,
+    "official_fold_leakage": {
+      "fold_0": 12,
+      "fold_1": 15,
+      "fold_2": 12,
+      "fold_3": 11,
+      "fold_4": 12
+    }
+  },
+  "clean_manifest_verification": {
+    "clean_manifest_present": true,
+    "is_valid": true,
+    "details": {
+      "train_size": 990,
+      "val_size": 175,
+      "test_size": 292,
+      "total_assigned": 1457,
+      "train_val_hash_overlap": 0,
+      "train_test_hash_overlap": 0,
+      "val_test_hash_overlap": 0,
+      "duplicate_groups_split": 0
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "experiment_id": "exp2_class_weighted",
+  "description": "ResNet50 transfer learning on ACNE04",
+  "timestamp": "2026-11-02T16:29:44Z",
+  "architecture": "resnet50",
+  "finetune_mode": "deep_layer3_4",
+  "pretrained_weights": "IMAGENET1K_V2",
+  "seed": 42,
+  "epochs_run": 10,
+  "best_epoch": 9,
+  "model_selection_metric": "val_macro_f1",
+  "best_validation_score": 0.7026,
+  "best_validation_accuracy": 0.72,
+  "best_validation_macro_f1": 0.7026,
+  "best_validation_loss": 0.9846,
+  "split_counts": {
+    "train": 990,
+    "validation": 175,
+    "test": 292
+  },
+  "class_distributions": {
+    "train": [
+      348,
+      430,
+      124,
+      88
+    ],
+    "validation": [
+      62,
+      76,
+      22,
+      15
+    ],
+    "test": [
+      103,
+      127,
+      36,
+      26
+    ]
+  },
+  "evaluation_split": "val",
+  "evaluation_metrics": {
+    "accuracy": 0.72,
+    "balanced_accuracy": 0.7446,
+    "macro_precision": 0.6872,
+    "macro_recall": 0.7446,
+    "macro_f1": 0.7026,
+    "weighted_f1": 0.7174,
+    "cross_entropy_loss": 0.7411,
+    "expected_calibration_error": 0.1042,
+    "per_class": {}
+  },
+  "checkpoint_path": "C:\\Users\\NuKe\\OneDrive\\Desktop\\Skinora_updated\\Skinora\\backend\\experiments\\exp2_class_weighted\\exp2_class_weighted_best.pth"
+}

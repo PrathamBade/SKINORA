@@ -40,6 +40,7 @@ class TrainingConfig:
     image_size: int = IMAGE_SIZE
     num_workers: int = 0
     extra_data_dir: Optional[str] = None
+    split_manifest: Optional[str] = None
 
     # Hyperparameters
     epochs: int = 8
@@ -72,14 +73,16 @@ class TrainingConfig:
     # Augmentation
     aug_rotation_degrees: float = 12.0
     aug_horizontal_flip: bool = True
-    aug_color_jitter_brightness: float = 0.10
-    aug_color_jitter_contrast: float = 0.10
+    aug_color_jitter_brightness: float = 0.08
+    aug_color_jitter_contrast: float = 0.08
+    aug_color_jitter_saturation: float = 0.05
     aug_scale_min: float = 0.85
     aug_scale_max: float = 1.0
 
     # Paths
     output_dir: Optional[str] = None
     save_best_checkpoint: bool = True
+    evaluate_test: bool = False
 
     def get_output_path(self) -> Path:
         if self.output_dir:

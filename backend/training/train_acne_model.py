@@ -117,7 +117,7 @@ def get_train_transform(config: TrainingConfig) -> transforms.Compose:
         transforms.ColorJitter(
             brightness=config.aug_color_jitter_brightness,
             contrast=config.aug_color_jitter_contrast,
-            saturation=0.06,
+            saturation=config.aug_color_jitter_saturation,
         ),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
@@ -205,18 +205,26 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
 
     print(f"Dataset summary: total={len(ds)}, train_split={len(train_indices)}, test_split={len(test_indices)}")
 
-    # Stratified validation split from training partition
-    train_labels = all_labels[train_indices]
-    train_idx, val_idx = train_test_split(
-        train_indices,
-        test_size=config.val_split_ratio,
-        random_state=config.seed,
-        stratify=train_labels,
-    )
-
-    train_base = train_idx.tolist()
-    val_rows = val_idx.tolist()
-    test_rows = test_indices
+    # Stratified validation split or leakage-free clean split manifest
+    manifest_p = Path(config.split_manifest) if config.split_manifest else (MODELS_DIR / "clean_splits_manifest.json")
+    if manifest_p.exists():
+        with open(manifest_p, "r", encoding="utf-8") as f:
+            clean_man = json.load(f)
+        train_base = clean_man["splits"]["train"]
+        val_rows = clean_man["splits"]["validation"]
+        test_rows = clean_man["splits"]["test"]
+        print(f"Loaded leakage-free split manifest from {manifest_p}: train={len(train_base)}, val={len(val_rows)}, test={len(test_rows)}")
+    else:
+        train_labels = all_labels[train_indices]
+        train_idx, val_idx = train_test_split(
+            train_indices,
+            test_size=config.val_split_ratio,
+            random_state=config.seed,
+            stratify=train_labels,
+        )
+        train_base = train_idx.tolist()
+        val_rows = val_idx.tolist()
+        test_rows = test_indices
 
     # Report class distributions per split
     train_counts = np.bincount(all_labels[train_base], minlength=4)
@@ -432,16 +440,17 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
     with open(history_file, "w", encoding="utf-8") as f:
         json.dump(history, f, indent=2)
 
-    # 6. Final Evaluation on Held-Out Test Set using Best Checkpoint
-    print(f"\nLoading best checkpoint (from epoch {best_epoch}) for final test set evaluation...")
+    # 6. Evaluation using Best Checkpoint (Validation by default, or Test if evaluate_test=True)
+    eval_split = "test" if getattr(config, "evaluate_test", False) else "val"
+    print(f"\nLoading best checkpoint (from epoch {best_epoch}) for final {eval_split} set evaluation...")
     best_model = build_model(config, num_classes=len(CLASSES)).to(device)
     ckpt = torch.load(best_checkpoint_path, map_location=device, weights_only=True)
     best_model.load_state_dict(ckpt["model_state_dict"])
     best_model.eval()
 
-    test_report = evaluate_model_on_split(
+    eval_report = evaluate_model_on_split(
         model=best_model,
-        split_name="test",
+        split_name=eval_split,
         device=device,
         output_dir=output_dir,
         history=history,
@@ -473,18 +482,23 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
             "validation": val_counts.tolist(),
             "test": test_counts.tolist(),
         },
-        "test_metrics": {
-            "accuracy": test_report["accuracy"],
-            "balanced_accuracy": test_report["balanced_accuracy"],
-            "macro_precision": test_report["macro_precision"],
-            "macro_recall": test_report["macro_recall"],
-            "macro_f1": test_report["macro_f1"],
-            "weighted_f1": test_report["weighted_f1"],
-            "cross_entropy_loss": test_report["cross_entropy_loss"],
-            "expected_calibration_error": test_report["expected_calibration_error"],
+        "evaluation_split": eval_split,
+        "evaluation_metrics": {
+            "accuracy": eval_report["accuracy"],
+            "balanced_accuracy": eval_report["balanced_accuracy"],
+            "macro_precision": eval_report["macro_precision"],
+            "macro_recall": eval_report["macro_recall"],
+            "macro_f1": eval_report["macro_f1"],
+            "weighted_f1": eval_report["weighted_f1"],
+            "cross_entropy_loss": eval_report["cross_entropy_loss"],
+            "expected_calibration_error": eval_report["expected_calibration_error"],
+            "per_class": eval_report.get("per_class", {}),
         },
         "checkpoint_path": str(best_checkpoint_path),
     }
+
+    if eval_split == "test":
+        manifest["test_metrics"] = manifest["evaluation_metrics"]
 
     manifest_file = output_dir / "manifest.json"
     with open(manifest_file, "w", encoding="utf-8") as f:
@@ -492,11 +506,12 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
 
     print(f"\n==================================================")
     print(f"Experiment '{config.experiment_id}' Completed!")
-    print(f"Best Validation Macro F1: {best_selection_score*100:.2f}%")
-    print(f"Test Accuracy:            {test_report['accuracy']*100:.2f}%")
-    print(f"Test Balanced Accuracy:   {test_report['balanced_accuracy']*100:.2f}%")
-    print(f"Test Macro F1:            {test_report['macro_f1']*100:.2f}%")
-    print(f"Test Loss:                {test_report['cross_entropy_loss']:.4f}")
+    print(f"Best Epoch:               {best_epoch}")
+    print(f"Best Val Macro F1 (Loop): {best_selection_score*100:.2f}%")
+    print(f"{eval_split.capitalize()} Accuracy:            {eval_report['accuracy']*100:.2f}%")
+    print(f"{eval_split.capitalize()} Balanced Accuracy:   {eval_report['balanced_accuracy']*100:.2f}%")
+    print(f"{eval_split.capitalize()} Macro F1:            {eval_report['macro_f1']*100:.2f}%")
+    print(f"{eval_split.capitalize()} Loss:                {eval_report['cross_entropy_loss']:.4f}")
     print(f"Artifacts saved in:       {output_dir}")
     print(f"==================================================\n")
 
@@ -518,7 +533,14 @@ def main():
     parser.add_argument("--label-smoothing", type=float, default=0.05)
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--split-manifest", type=str, default=None, help="Path to clean_splits_manifest.json")
     parser.add_argument("--extra-data-dir", type=str, default=None)
+    parser.add_argument("--aug-rotation", type=float, default=12.0, help="Random rotation degrees")
+    parser.add_argument("--aug-brightness", type=float, default=0.08, help="Color jitter brightness factor")
+    parser.add_argument("--aug-contrast", type=float, default=0.08, help="Color jitter contrast factor")
+    parser.add_argument("--aug-saturation", type=float, default=0.05, help="Color jitter saturation factor")
+    parser.add_argument("--no-aug-flip", action="store_true", help="Disable random horizontal flip")
+    parser.add_argument("--evaluate-test", action="store_true", help="Evaluate on held-out test split (default: evaluate on validation set only)")
     parser.add_argument("--set-as-production", action="store_true", help="Copy checkpoint and metrics to models/ for backend serving")
     args = parser.parse_args()
 
@@ -536,7 +558,14 @@ def main():
         label_smoothing=args.label_smoothing,
         scheduler_name=args.scheduler,
         seed=args.seed,
+        split_manifest=args.split_manifest,
         extra_data_dir=args.extra_data_dir,
+        aug_rotation_degrees=args.aug_rotation,
+        aug_color_jitter_brightness=args.aug_brightness,
+        aug_color_jitter_contrast=args.aug_contrast,
+        aug_color_jitter_saturation=args.aug_saturation,
+        aug_horizontal_flip=(not args.no_aug_flip),
+        evaluate_test=args.evaluate_test,
     )
 
     manifest = run_training_experiment(cfg)
@@ -571,19 +600,19 @@ def main():
                 "best_validation_macro_f1": manifest.get("best_validation_macro_f1", manifest.get("best_validation_score")),
             },
             "test_metrics": {
-                "test_accuracy": manifest["test_metrics"]["accuracy"],
-                "test_accuracy_percent": round(manifest["test_metrics"]["accuracy"] * 100, 2),
-                "balanced_accuracy": manifest["test_metrics"]["balanced_accuracy"],
-                "macro_precision": manifest["test_metrics"]["macro_precision"],
-                "macro_recall": manifest["test_metrics"]["macro_recall"],
-                "macro_f1": manifest["test_metrics"]["macro_f1"],
-                "weighted_f1": manifest["test_metrics"]["weighted_f1"],
-                "cross_entropy_loss": manifest["test_metrics"]["cross_entropy_loss"],
-                "expected_calibration_error": manifest["test_metrics"]["expected_calibration_error"],
+                "test_accuracy": (manifest.get("test_metrics") or {}).get("accuracy"),
+                "test_accuracy_percent": round(manifest["test_metrics"]["accuracy"] * 100, 2) if manifest.get("test_metrics") else None,
+                "balanced_accuracy": (manifest.get("test_metrics") or {}).get("balanced_accuracy"),
+                "macro_precision": (manifest.get("test_metrics") or {}).get("macro_precision"),
+                "macro_recall": (manifest.get("test_metrics") or {}).get("macro_recall"),
+                "macro_f1": (manifest.get("test_metrics") or {}).get("macro_f1"),
+                "weighted_f1": (manifest.get("test_metrics") or {}).get("weighted_f1"),
+                "cross_entropy_loss": (manifest.get("test_metrics") or {}).get("cross_entropy_loss"),
+                "expected_calibration_error": (manifest.get("test_metrics") or {}).get("expected_calibration_error"),
             },
             "best_validation_accuracy": manifest.get("best_validation_accuracy", manifest.get("best_validation_score")),
-            "test_accuracy": manifest["test_metrics"]["accuracy"],
-            "test_loss": manifest["test_metrics"]["cross_entropy_loss"],
+            "test_accuracy": (manifest.get("test_metrics") or {}).get("accuracy"),
+            "test_loss": (manifest.get("test_metrics") or {}).get("cross_entropy_loss"),
             "checkpoint": str(prod_ckpt),
             "updated_at": manifest["timestamp"],
         }
