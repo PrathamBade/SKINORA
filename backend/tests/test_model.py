@@ -1,9 +1,16 @@
 """Unit tests for model construction, layer freezing, and checkpoint serialization."""
+import sys
 import tempfile
 from pathlib import Path
-import pytest
 import torch
 import torch.nn as nn
+
+root = Path(__file__).resolve().parents[2]
+if str(root) not in sys.path:
+    sys.path.insert(0, str(root))
+root_parent = root.parent
+if str(root_parent) not in sys.path:
+    sys.path.insert(0, str(root_parent))
 
 try:
     from Skinora.backend.training.config import CLASSES, TrainingConfig
@@ -78,3 +85,15 @@ def test_checkpoint_roundtrip():
         assert classes == CLASSES
         assert metadata["validation_accuracy"] == 0.75
         assert metadata["architecture"] == "resnet50"
+
+
+if __name__ == "__main__":
+    test_build_model_frozen()
+    print("  [PASS] test_build_model_frozen")
+    test_build_model_partial_layer4()
+    print("  [PASS] test_build_model_partial_layer4")
+    test_parameter_groups()
+    print("  [PASS] test_parameter_groups")
+    test_checkpoint_roundtrip()
+    print("  [PASS] test_checkpoint_roundtrip")
+    print("All test_model tests passed successfully!")

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -31,6 +32,7 @@ try:
         set_seed,
     )
     from .evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
+    from .loss import FocalLoss
     from .model import build_model, get_parameter_groups, save_checkpoint
 except (ImportError, ValueError):
     import sys
@@ -52,6 +54,7 @@ except (ImportError, ValueError):
             set_seed,
         )
         from training.evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
+        from training.loss import FocalLoss
         from training.model import build_model, get_parameter_groups, save_checkpoint
     except ImportError:
         from config import (
@@ -67,6 +70,7 @@ except (ImportError, ValueError):
             set_seed,
         )
         from evaluate_acne_model import evaluate_model_on_split, get_eval_transform, plot_confusion_matrix, plot_training_curves
+        from loss import FocalLoss
         from model import build_model, get_parameter_groups, save_checkpoint
 
 
@@ -182,20 +186,39 @@ def evaluate_epoch(
 def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
     """Execute complete controlled experiment with artifact generation."""
     set_seed(config.seed, config.deterministic)
-    device = get_device()
+    device = get_device(
+        device_str=getattr(config, "device_name", None),
+        require_gpu=getattr(config, "require_gpu", False),
+    )
     output_dir = config.get_output_path()
+
+    device_desc = f"{device}"
+    if device.type == "cuda":
+        device_desc += f" ({torch.cuda.get_device_name(0)})"
 
     print(f"\n==================================================")
     print(f"Starting Experiment: {config.experiment_id}")
     print(f"Architecture:        {config.architecture}")
     print(f"Fine-tune Mode:      {config.finetune_mode}")
-    print(f"Device:              {device}")
+    print(f"Loss Function:       {config.loss} (gamma={config.focal_gamma if config.loss == 'focal' else 'N/A'})")
+    print(f"Device:              {device_desc}")
     print(f"Output Directory:    {output_dir}")
     print(f"==================================================\n")
 
     # 1. Dataset loading & integrity verification
-    print("Loading ACNE04 dataset from Hugging Face...")
-    ds = load_dataset("Layered-Labs/ACNE04", split="train")
+    ds_name = getattr(config, "dataset_name", "Layered-Labs/ACNE04")
+    ds_revision = getattr(config, "dataset_revision", "e375d8dac98b8562c5ab462d5f00ac011e8a47db")
+    print(f"Loading dataset '{ds_name}' (revision={ds_revision})...")
+    try:
+        ds = load_dataset(ds_name, split="train", revision=ds_revision)
+    except Exception as e:
+        if os.environ.get("HF_DATASETS_OFFLINE") == "1":
+            raise RuntimeError(
+                f"Failed to load dataset '{ds_name}' (revision '{ds_revision}') "
+                f"with HF_DATASETS_OFFLINE=1. The dataset has not been cached locally in this environment. "
+                f"Original error: {e}"
+            ) from e
+        raise
 
     split_values = np.asarray(ds["split"])
     all_labels = np.asarray(ds["level"], dtype=np.int64)
@@ -213,7 +236,27 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
         train_base = clean_man["splits"]["train"]
         val_rows = clean_man["splits"]["validation"]
         test_rows = clean_man["splits"]["test"]
-        print(f"Loaded leakage-free split manifest from {manifest_p}: train={len(train_base)}, val={len(val_rows)}, test={len(test_rows)}")
+
+        # Validate indices are valid for the loaded dataset
+        all_manifest_indices = train_base + val_rows + test_rows
+        min_idx, max_idx = min(all_manifest_indices), max(all_manifest_indices)
+        if min_idx < 0 or max_idx >= len(ds):
+            raise ValueError(
+                f"Split manifest contains out-of-bounds indices: min={min_idx}, max={max_idx}, dataset size={len(ds)}"
+            )
+
+        # Validate that splits do not overlap
+        s_train, s_val, s_test = set(train_base), set(val_rows), set(test_rows)
+        overlap_train_val = s_train & s_val
+        overlap_train_test = s_train & s_test
+        overlap_val_test = s_val & s_test
+        if overlap_train_val or overlap_train_test or overlap_val_test:
+            raise ValueError(
+                f"Split overlap detected in manifest! "
+                f"Train-Val: {len(overlap_train_val)}, Train-Test: {len(overlap_train_test)}, Val-Test: {len(overlap_val_test)}"
+            )
+
+        print(f"Loaded leakage-free split manifest from {manifest_p}: train={len(train_base)}, val={len(val_rows)}, test={len(test_rows)} (disjoint verified)")
     else:
         train_labels = all_labels[train_indices]
         train_idx, val_idx = train_test_split(
@@ -263,26 +306,30 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
         *([FolderDataset(extra_val, eval_transform)] if extra_val else []),
     ])
 
+    pin_mem = bool(device.type == "cuda" and getattr(config, "pin_memory", True))
     train_loader = DataLoader(
         train_ds,
         batch_size=config.batch_size,
         shuffle=True,
         num_workers=config.num_workers,
-        pin_memory=(device.type == "cuda"),
+        pin_memory=pin_mem,
     )
     val_loader = DataLoader(
         val_ds,
         batch_size=config.batch_size,
         shuffle=False,
         num_workers=config.num_workers,
-        pin_memory=(device.type == "cuda"),
+        pin_memory=pin_mem,
     )
 
     # 2. Build model with architecture & layer freezing
     model = build_model(config, num_classes=len(CLASSES)).to(device)
 
-    # 3. Class weights calculation for balanced loss
-    if config.use_class_weights:
+    # 3. Loss function configuration
+    if config.loss == "focal":
+        print(f"Using Focal Loss (gamma={config.focal_gamma}, unweighted, no label smoothing)")
+        criterion = FocalLoss(gamma=config.focal_gamma, reduction="mean")
+    elif config.use_class_weights:
         total_train = len(train_base) + len(extra_train)
         combined_counts = train_counts.copy()
         for _, lbl in extra_train:
@@ -310,8 +357,13 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
     else:
         scheduler = None
 
-    # Mixed precision scaler (CUDA only)
-    scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda"))
+    # Mixed precision scaler (configurable, default False for AMD ROCm / CPU stability)
+    amp_enabled = bool(getattr(config, "use_amp", False) and device.type == "cuda")
+    scaler = torch.amp.GradScaler("cuda", enabled=amp_enabled)
+    if amp_enabled:
+        print("Mixed precision training (GradScaler + autocast) enabled.")
+    else:
+        print("Full precision (FP32) training mode active.")
 
     # 5. Training loop with Validation Macro F1 Model Selection
     history: List[Dict[str, Any]] = []
@@ -352,7 +404,7 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
 
             optimizer.zero_grad(set_to_none=True)
 
-            with torch.autocast(device_type=device.type, enabled=(device.type == "cuda")):
+            with torch.autocast(device_type=device.type, enabled=amp_enabled):
                 logits = model(images)
                 loss = criterion(logits, labels)
 
@@ -402,7 +454,9 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
             f"{duration}s"
         )
 
-        # Model selection metric check
+        # Model selection: Primary metric is Validation Macro F1.
+        # Tie-breaking rule: Strictly greater score (>). If two epochs have identical macro F1,
+        # the earlier epoch is retained to prefer the less-drifted / earlier regularized checkpoint.
         if config.model_selection_metric == "val_macro_f1":
             metric_val = val_macro_f1
         elif config.model_selection_metric == "val_acc":
@@ -425,6 +479,7 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
                     "val_accuracy": round(val_acc, 4),
                     "val_macro_f1": round(val_macro_f1, 4),
                     "val_loss": round(val_loss, 4),
+                    "epoch": epoch,
                 },
                 filepath=best_checkpoint_path,
             )
@@ -434,6 +489,21 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
             if no_improve >= config.early_stopping_patience:
                 print(f"Early stopping triggered after {no_improve} epochs without improvement.")
                 break
+
+    # Save final-epoch checkpoint for full experiment isolation & resumability
+    last_checkpoint_path = output_dir / f"{config.experiment_id}_last.pth"
+    save_checkpoint(
+        model=model,
+        config=config,
+        metrics={
+            "val_accuracy": round(val_acc, 4),
+            "val_macro_f1": round(val_macro_f1, 4),
+            "val_loss": round(val_loss, 4),
+            "epoch": len(history),
+        },
+        filepath=last_checkpoint_path,
+    )
+    print(f"Saved final-epoch checkpoint to {last_checkpoint_path}")
 
     # Save training history JSON
     history_file = output_dir / "training_history.json"
@@ -463,11 +533,22 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "architecture": config.architecture,
         "finetune_mode": config.finetune_mode,
+        "dataset_name": ds_name,
+        "dataset_revision": ds_revision,
+        "split_manifest_path": str(manifest_p),
+        "class_to_id": CLASS_TO_ID,
+        "loss": config.loss,
+        "focal_gamma": config.focal_gamma if config.loss == "focal" else None,
+        "use_class_weights": config.use_class_weights,
+        "label_smoothing": config.label_smoothing,
+        "device": device_desc,
+        "amp_enabled": amp_enabled,
         "pretrained_weights": config.pretrained_weights,
         "seed": config.seed,
         "epochs_run": len(history),
         "best_epoch": best_epoch,
         "model_selection_metric": config.model_selection_metric,
+        "tie_breaking_rule": "strictly_greater_val_macro_f1_prefers_earlier_epoch",
         "best_validation_score": round(best_selection_score, 4),
         "best_validation_accuracy": round(best_val_acc, 4),
         "best_validation_macro_f1": round(best_val_macro_f1, 4),
@@ -495,6 +576,7 @@ def run_training_experiment(config: TrainingConfig) -> Dict[str, Any]:
             "per_class": eval_report.get("per_class", {}),
         },
         "checkpoint_path": str(best_checkpoint_path),
+        "last_checkpoint_path": str(last_checkpoint_path),
     }
 
     if eval_split == "test":
@@ -523,6 +605,12 @@ def main():
     parser.add_argument("--experiment-id", type=str, default="resnet50_optimized")
     parser.add_argument("--architecture", type=str, default="resnet50", choices=["resnet50", "efficientnet_b0"])
     parser.add_argument("--finetune-mode", type=str, default="partial_layer4", choices=["frozen", "partial_layer4", "deep_layer3_4", "full"])
+    parser.add_argument("--dataset-name", type=str, default="Layered-Labs/ACNE04", help="Hugging Face dataset identifier")
+    parser.add_argument("--dataset-revision", type=str, default="e375d8dac98b8562c5ab462d5f00ac011e8a47db", help="Pinned Hugging Face git commit revision")
+    parser.add_argument("--device", type=str, default=None, choices=["cuda", "cpu"], help="Explicit compute device (cuda or cpu)")
+    parser.add_argument("--require-gpu", action="store_true", help="Require GPU execution and abort if torch.cuda.is_available() is False")
+    parser.add_argument("--loss", type=str, default="cross_entropy", choices=["cross_entropy", "focal"], help="Loss function (cross_entropy or focal)")
+    parser.add_argument("--focal-gamma", type=float, default=2.0, help="Focusing parameter gamma for Focal Loss (default: 2.0)")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--backbone-lr", type=float, default=2e-5)
@@ -532,6 +620,11 @@ def main():
     parser.add_argument("--no-class-weights", action="store_true")
     parser.add_argument("--label-smoothing", type=float, default=0.05)
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
+    parser.add_argument("--scheduler-patience", type=int, default=2, help="ReduceLROnPlateau scheduler patience")
+    parser.add_argument("--scheduler-factor", type=float, default=0.5, help="ReduceLROnPlateau scheduler decay factor")
+    parser.add_argument("--early-stopping-patience", type=int, default=3, help="Early stopping patience in epochs")
+    parser.add_argument("--use-amp", action="store_true", help="Enable mixed precision training (GradScaler + autocast)")
+    parser.add_argument("--num-workers", type=int, default=0, help="Number of DataLoader workers (safe default: 0)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--split-manifest", type=str, default=None, help="Path to clean_splits_manifest.json")
     parser.add_argument("--extra-data-dir", type=str, default=None)
@@ -544,19 +637,33 @@ def main():
     parser.add_argument("--set-as-production", action="store_true", help="Copy checkpoint and metrics to models/ for backend serving")
     args = parser.parse_args()
 
+    # For focal loss, force class weights and label smoothing off to prevent silent combination
+    is_focal = (args.loss == "focal")
+    use_cw = False if is_focal else (not args.no_class_weights)
+    ls = 0.0 if is_focal else args.label_smoothing
+
     cfg = TrainingConfig(
         experiment_id=args.experiment_id,
         architecture=args.architecture,
         finetune_mode=args.finetune_mode,
+        dataset_name=args.dataset_name,
+        dataset_revision=args.dataset_revision,
+        loss=args.loss,
+        focal_gamma=args.focal_gamma,
         epochs=args.epochs,
         batch_size=args.batch_size,
         backbone_lr=args.backbone_lr,
         head_lr=args.head_lr,
         weight_decay=args.weight_decay,
         dropout_rate=args.dropout,
-        use_class_weights=(not args.no_class_weights),
-        label_smoothing=args.label_smoothing,
+        use_class_weights=use_cw,
+        label_smoothing=ls,
         scheduler_name=args.scheduler,
+        scheduler_patience=args.scheduler_patience,
+        scheduler_factor=args.scheduler_factor,
+        early_stopping_patience=args.early_stopping_patience,
+        use_amp=args.use_amp,
+        num_workers=args.num_workers,
         seed=args.seed,
         split_manifest=args.split_manifest,
         extra_data_dir=args.extra_data_dir,
@@ -567,6 +674,10 @@ def main():
         aug_horizontal_flip=(not args.no_aug_flip),
         evaluate_test=args.evaluate_test,
     )
+    if args.device:
+        cfg.device_name = args.device
+    if args.require_gpu:
+        cfg.require_gpu = True
 
     manifest = run_training_experiment(cfg)
 

@@ -153,6 +153,8 @@ def save_checkpoint(
         "finetune_mode": config.finetune_mode,
         "dropout_rate": config.dropout_rate,
         "experiment_id": config.experiment_id,
+        "loss": getattr(config, "loss", "cross_entropy"),
+        "focal_gamma": getattr(config, "focal_gamma", None) if getattr(config, "loss", "cross_entropy") == "focal" else None,
         "validation_accuracy": metrics.get("val_accuracy"),
         "validation_macro_f1": metrics.get("val_macro_f1"),
         "validation_loss": metrics.get("val_loss"),

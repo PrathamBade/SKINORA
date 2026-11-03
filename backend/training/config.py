@@ -31,6 +31,10 @@ class TrainingConfig:
     architecture: str = "resnet50"  # 'resnet50' or 'efficientnet_b0'
     pretrained_weights: str = "IMAGENET1K_V2"
 
+    # Dataset metadata & versioning
+    dataset_name: str = "Layered-Labs/ACNE04"
+    dataset_revision: str = "e375d8dac98b8562c5ab462d5f00ac011e8a47db"
+
     # Reproducibility
     seed: int = 42
     deterministic: bool = False
@@ -58,9 +62,15 @@ class TrainingConfig:
     finetune_mode: str = "partial_layer4"
 
     # Imbalance & Loss
+    loss: str = "cross_entropy"  # 'cross_entropy' or 'focal'
+    focal_gamma: float = 2.0
     use_class_weights: bool = True
     use_weighted_sampler: bool = False
     label_smoothing: float = 0.05
+
+    # Hardware & Performance
+    use_amp: bool = False
+    pin_memory: bool = True
 
     # Optimization & Scheduling
     optimizer_name: str = "AdamW"
@@ -109,6 +119,24 @@ def set_seed(seed: int = 42, deterministic: bool = False) -> None:
         torch.backends.cudnn.benchmark = False
 
 
-def get_device() -> torch.device:
+def get_device(
+    device_str: Optional[str] = None, require_gpu: bool = False
+) -> torch.device:
+    """Resolve PyTorch compute device with strict validation if GPU is required."""
+    if device_str:
+        dev = torch.device(device_str)
+        if dev.type == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError(
+                f"Device '{device_str}' explicitly requested, but torch.cuda.is_available() is False. "
+                "Aborting to prevent unintentional fallback to CPU."
+            )
+        return dev
+    if require_gpu:
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "GPU execution required (--require-gpu), but torch.cuda.is_available() is False. "
+                "Aborting to prevent unintentional fallback to CPU."
+            )
+        return torch.device("cuda")
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

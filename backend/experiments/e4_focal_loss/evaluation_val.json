@@ -1,0 +1,74 @@
+{
+  "split": "val",
+  "protocol": "clean",
+  "leakage_free": true,
+  "split_manifest": "/mnt/c/Users/NuKe/OneDrive/Desktop/Skinora_updated/Skinora/backend/models/clean_splits_manifest.json",
+  "sample_count": 175,
+  "accuracy": 0.7086,
+  "balanced_accuracy": 0.7284,
+  "macro_precision": 0.7293,
+  "macro_recall": 0.7284,
+  "macro_f1": 0.7206,
+  "weighted_f1": 0.7052,
+  "cross_entropy_loss": 0.6607,
+  "expected_calibration_error": 0.1082,
+  "mean_confidence": 0.6004,
+  "confusion_matrix": [
+    [
+      38,
+      24,
+      0,
+      0
+    ],
+    [
+      13,
+      59,
+      3,
+      1
+    ],
+    [
+      0,
+      5,
+      13,
+      4
+    ],
+    [
+      0,
+      0,
+      1,
+      14
+    ]
+  ],
+  "classes": [
+    "mild",
+    "moderate",
+    "severe",
+    "very_severe"
+  ],
+  "class_metrics": {
+    "mild": {
+      "precision": 0.7451,
+      "recall": 0.6129,
+      "f1": 0.6726,
+      "support": 62
+    },
+    "moderate": {
+      "precision": 0.6705,
+      "recall": 0.7763,
+      "f1": 0.7195,
+      "support": 76
+    },
+    "severe": {
+      "precision": 0.7647,
+      "recall": 0.5909,
+      "f1": 0.6667,
+      "support": 22
+    },
+    "very_severe": {
+      "precision": 0.7368,
+      "recall": 0.9333,
+      "f1": 0.8235,
+      "support": 15
+    }
+  }
+}

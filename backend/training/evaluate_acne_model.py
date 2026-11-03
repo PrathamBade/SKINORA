@@ -181,7 +181,19 @@ def evaluate_model_on_split(
     model.to(device)
     model.eval()
 
-    ds = load_dataset("Layered-Labs/ACNE04", split="train")
+    ds_name = "Layered-Labs/ACNE04"
+    ds_revision = "e375d8dac98b8562c5ab462d5f00ac011e8a47db"
+    try:
+        ds = load_dataset(ds_name, split="train", revision=ds_revision)
+    except Exception as e:
+        import os
+        if os.environ.get("HF_DATASETS_OFFLINE") == "1":
+            raise RuntimeError(
+                f"Failed to load dataset '{ds_name}' (revision '{ds_revision}') "
+                f"with HF_DATASETS_OFFLINE=1. The dataset has not been cached locally in this environment. "
+                f"Original error: {e}"
+            ) from e
+        raise
     split_values = np.asarray(ds["split"])
 
     manifest_file = split_manifest_path or (MODELS_DIR / "clean_splits_manifest.json")

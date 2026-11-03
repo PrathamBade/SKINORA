@@ -1,0 +1,71 @@
+{
+  "experiment_id": "e4_focal_loss",
+  "description": "ResNet50 transfer learning on ACNE04",
+  "timestamp": "2026-11-03T12:46:01Z",
+  "architecture": "resnet50",
+  "finetune_mode": "deep_layer3_4",
+  "dataset_name": "Layered-Labs/ACNE04",
+  "dataset_revision": "e375d8dac98b8562c5ab462d5f00ac011e8a47db",
+  "split_manifest_path": "models/clean_splits_manifest.json",
+  "class_to_id": {
+    "mild": 0,
+    "moderate": 1,
+    "severe": 2,
+    "very_severe": 3
+  },
+  "loss": "focal",
+  "focal_gamma": 2.0,
+  "use_class_weights": false,
+  "label_smoothing": 0.0,
+  "device": "cuda (AMD Radeon RX 7900 XT)",
+  "amp_enabled": false,
+  "pretrained_weights": "IMAGENET1K_V2",
+  "seed": 42,
+  "epochs_run": 10,
+  "best_epoch": 9,
+  "model_selection_metric": "val_macro_f1",
+  "tie_breaking_rule": "strictly_greater_val_macro_f1_prefers_earlier_epoch",
+  "best_validation_score": 0.7206,
+  "best_validation_accuracy": 0.7086,
+  "best_validation_macro_f1": 0.7206,
+  "best_validation_loss": 0.21,
+  "split_counts": {
+    "train": 990,
+    "validation": 175,
+    "test": 292
+  },
+  "class_distributions": {
+    "train": [
+      348,
+      430,
+      124,
+      88
+    ],
+    "validation": [
+      62,
+      76,
+      22,
+      15
+    ],
+    "test": [
+      103,
+      127,
+      36,
+      26
+    ]
+  },
+  "evaluation_split": "val",
+  "evaluation_metrics": {
+    "accuracy": 0.7086,
+    "balanced_accuracy": 0.7284,
+    "macro_precision": 0.7293,
+    "macro_recall": 0.7284,
+    "macro_f1": 0.7206,
+    "weighted_f1": 0.7052,
+    "cross_entropy_loss": 0.6607,
+    "expected_calibration_error": 0.1082,
+    "per_class": {}
+  },
+  "checkpoint_path": "/mnt/c/Users/NuKe/OneDrive/Desktop/Skinora_updated/Skinora/backend/experiments/e4_focal_loss/e4_focal_loss_best.pth",
+  "last_checkpoint_path": "/mnt/c/Users/NuKe/OneDrive/Desktop/Skinora_updated/Skinora/backend/experiments/e4_focal_loss/e4_focal_loss_last.pth"
+}

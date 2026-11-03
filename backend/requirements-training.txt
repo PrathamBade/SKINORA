@@ -1,0 +1,27 @@
+# Skinora Training & Evaluation Dependencies
+# -------------------------------------------------------------
+# IMPORTANT INSTALLATION NOTICE:
+# Do NOT install PyTorch or torchvision from this requirements file.
+# PyTorch must be installed according to your hardware platform:
+#
+# - AMD ROCm (Linux / WSL2):
+#     Pre-installed in the ROCm environment, or install matching your ROCm driver:
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.2 (or matching version)
+#     DO NOT reinstall or upgrade PyTorch if already configured in ROCm.
+#
+# - NVIDIA CUDA (Linux / Windows):
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#
+# - CPU Only:
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# -------------------------------------------------------------
+
+datasets>=3.2.0
+scikit-learn>=1.5.2
+numpy>=1.26.4
+matplotlib>=3.8.0
+pandas>=2.2.0
+tqdm>=4.66.0
+transformers>=4.40.0
+Pillow>=10.0.0
+

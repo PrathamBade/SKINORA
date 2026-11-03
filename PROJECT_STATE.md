@@ -1,3 +1,4 @@
+
 # SKINORA — Comprehensive Project State & Developer Handoff
 
 > **Preservation Timestamp**: November 3, 2026 — 13:30 IST  
@@ -101,8 +102,8 @@ flowchart TD
 | **Fine-Tuning E1 (Deep Layer3+4)** | Implemented | **Verified** | 10 epochs completed; val macro F1 = 74.54%, loss = 0.6164. |
 | **Fine-Tuning E2 (Class-Weighted)** | Implemented | **Verified** | 10 epochs completed; val macro F1 = 70.26% (degraded Moderate). |
 | **Fine-Tuning E3 (Dermatology Aug)** | Implemented | **Verified** | 10 epochs completed; val macro F1 = 74.46%, ECE = 0.0633 (best). |
-| **Fine-Tuning E4 (Focal Loss)** | Spec Ready | *Not Started* | Planned next experiment; addresses boundary confusion. |
-| **ROCm GPU Acceleration in WSL2** | Configured | *Partially Verified* | Dry-run package plan resolved; awaits internet for SDK install. |
+| **Fine-Tuning E4 (Focal Loss)** | Implemented | **Verified** | 10 epochs completed on RX 7900 XT; val macro F1 = 72.06%, test macro F1 = 65.53%, test acc = 67.12%, very_severe F1 = 74.07%. |
+| **ROCm GPU Acceleration in WSL2** | Configured | **Verified** | AMD Radeon RX 7900 XT natively accelerated via PyTorch 2.11.0+rocm7.14.1 in WSL2 Ubuntu 24.04. |
 
 ---
 
@@ -131,23 +132,23 @@ flowchart TD
 
 All experiments used random seed `42` and were evaluated **strictly on the 175-image clean validation split**:
 
-| Metric | Clean Baseline *(Production Checkpoint)* | E1 (`exp1_deep_finetune`) *(Unweighted, Deep 3+4)* | E2 (`exp2_class_weighted`) *(Inverse-Frequency Weighted)* | E3 (`exp3_dermatology_aug`) *(Conservative Derm Aug)* |
-|---|:---:|:---:|:---:|:---:|
-| **Loss Function** | Cross-Entropy | Cross-Entropy (Unweighted) | Weighted CE ($w=[0.71, 0.58, 2.00, 2.81]$) | Cross-Entropy (Unweighted) |
-| **Augmentation** | CenterCrop Only | Baseline Aug (Scale 0.85-1.0) | Baseline Aug | Rotation $\pm 12^\circ$, ColorJitter (B:0.08, C:0.08) |
-| **Finetune Depth** | Frozen / Layer4 | `deep_layer3_4` | `deep_layer3_4` | `deep_layer3_4` |
-| **Epochs Run** | 8 | 10 | 10 | 10 |
-| **Best Epoch** | — | 10 | 9 | 10 |
-| **Validation Accuracy** | **79.43%** | 74.29% | 72.00% | 74.29% |
-| **Balanced Accuracy** | **81.89%** | 75.18% | 74.46% | 75.40% |
-| **Validation Macro F1** | **79.47%** | **74.54%** | 70.26% | 74.46% |
-| **Validation Macro Precision** | **77.98%** | 76.22% | 68.72% | 74.66% |
-| **Validation Macro Recall** | **81.89%** | 75.18% | 74.46% | 75.40% |
-| **Validation Loss** | 0.8603 | **0.6164** | 0.7411 | 0.6202 |
-| **Calibration Error (ECE)** | 0.0704 | 0.0925 | 0.1042 | **0.0633** *(Best calibration)* |
-| **Severe (2) Recall** | **77.27% (17/22)** | 59.09% (13/22) | 59.09% (13/22) | 59.09% (13/22) |
-| **Severe (2) Precision** | 80.95% | **86.67%** | 65.00% | 76.47% |
-| **Very Severe (3) Recall** | **93.33% (14/15)** | **93.33% (14/15)** | **93.33% (14/15)** | **93.33% (14/15)** |
+| Metric | Clean Baseline *(Production Checkpoint)* | E1 (`exp1_deep_finetune`) *(Unweighted, Deep 3+4)* | E2 (`exp2_class_weighted`) *(Inverse-Frequency Weighted)* | E3 (`exp3_dermatology_aug`) *(Conservative Derm Aug)* | E4 (`e4_focal_loss`) *(Focal Loss gamma=2.0)* |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Loss Function** | Cross-Entropy | Cross-Entropy (Unweighted) | Weighted CE ($w=[0.71, 0.58, 2.00, 2.81]$) | Cross-Entropy (Unweighted) | Multiclass Focal Loss ($\gamma=2.0$) |
+| **Augmentation** | CenterCrop Only | Baseline Aug (Scale 0.85-1.0) | Baseline Aug | Rotation $\pm 12^\circ$, ColorJitter (B:0.08, C:0.08) | Baseline Aug (Scale 0.85-1.0) |
+| **Finetune Depth** | Frozen / Layer4 | `deep_layer3_4` | `deep_layer3_4` | `deep_layer3_4` | `deep_layer3_4` |
+| **Epochs Run** | 8 | 10 | 10 | 10 | 10 |
+| **Best Epoch** | — | 10 | 9 | 10 | 9 |
+| **Validation Accuracy** | **79.43%** | 74.29% | 72.00% | 74.29% | 70.86% |
+| **Balanced Accuracy** | **81.89%** | 75.18% | 74.46% | 75.40% | 72.84% |
+| **Validation Macro F1** | **79.47%** | **74.54%** | 70.26% | 74.46% | 72.06% |
+| **Validation Macro Precision** | **77.98%** | 76.22% | 68.72% | 74.66% | 72.93% |
+| **Validation Macro Recall** | **81.89%** | 75.18% | 74.46% | 75.40% | 72.84% |
+| **Validation Loss** | 0.8603 | **0.6164** | 0.7411 | 0.6202 | 0.6607 (CE) / 0.2100 (FL) |
+| **Calibration Error (ECE)** | 0.0704 | 0.0925 | 0.1042 | **0.0633** *(Best calibration)* | 0.1082 (Val) / **0.0704** (Test) |
+| **Severe (2) Recall** | **77.27% (17/22)** | 59.09% (13/22) | 59.09% (13/22) | 59.09% (13/22) | 59.09% (13/22) |
+| **Severe (2) Precision** | 80.95% | **86.67%** | 65.00% | 76.47% | 76.47% |
+| **Very Severe (3) Recall** | **93.33% (14/15)** | **93.33% (14/15)** | **93.33% (14/15)** | **93.33% (14/15)** | **93.33% (14/15)** |
 
 ### 4.4 Checkpoint Resumability Analysis
 - **Model Weight Preservation**: Complete. All 4 checkpoints on disk contain the full 320 weight and bias tensors for ResNet50.
@@ -180,23 +181,13 @@ All experiments used random seed `42` and were evaluated **strictly on the 175-i
 - **Git LFS**: `3.5.1`
 
 ### 6.2 AMD ROCm / WSL2 Setup Status
-- **Host GPU Hardware**: AMD Radeon RX 7900 XT (Architecture: `gfx1100`, RDNA 3).
+- **Host GPU Hardware**: AMD Radeon RX 7900 XT (Architecture: `gfx1100`, RDNA 3, 20 GB VRAM).
 - **Target Distribution**: Ubuntu 24.04.5 LTS on WSL2.
 - **Verified Status**:
-  - `ROCDXG` runtime package previously installed.
-  - ROCm CLI toolchain previously installed.
-  - Last completed command: `rocm install sdk --family gfx110X-all --dry-run` successfully resolved a package plan containing ROCm 7.14.1 and PyTorch 2.11.0.
-- **Unverified Status**:
-  - The SDK installation was a **dry run** only. Full installation was not completed due to network outage.
-  - PyTorch GPU execution on `gfx1100` remains **unverified**; all experiments were run on CPU in Windows.
-- **Action Required Once Connectivity Returns**:
-  1. Open WSL2 terminal: `wsl -d Ubuntu-24.04`
-  2. Execute actual SDK installation: `sudo rocm install sdk --family gfx110X-all`
-  3. Export RDNA 3 compatibility environment variable: `export HSA_OVERRIDE_GFX_VERSION=11.0.0`
-  4. Test PyTorch ROCm GPU access:
-     ```bash
-     python3 -c "import torch; print('CUDA/ROCm Available:', torch.cuda.is_available(), 'Device:', torch.cuda.get_device_name(0))"
-     ```
+  - **ROCm PyTorch Environment**: `/home/nuke/.rocm/runtimes/wheel/release-wheel-multi-arch-7-14-1-0b5cf9d493993efb/bin/python`
+  - **PyTorch Version**: `2.11.0+rocm7.14.1`, **Torchvision Version**: `0.26.0+rocm7.14.1`
+  - **Hardware Acceleration**: Natively verified via `torch.cuda.is_available() == True` without requiring `HSA_OVERRIDE_GFX_VERSION`.
+  - **Benchmark Validation**: Successfully trained all 10 epochs of experiment `e4_focal_loss` with zero faults or fallback.
 
 ---
 
