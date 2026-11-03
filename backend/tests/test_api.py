@@ -48,6 +48,14 @@ def test_model_evaluation_endpoint():
         assert "confusion_matrix" in data["report"]
         assert "accuracy" in data["report"]
         assert "macro_f1" in data["report"]
+        assert "validation_accuracy" in data
+        assert data["validation_accuracy"] is not None
+        assert "split_sizes" in data
+        assert data["split_sizes"] is not None
+        assert data["split_sizes"]["train"] == 990
+        assert data["split_sizes"]["validation"] == 175
+        assert data["split_sizes"]["test"] == 292
+        assert data["split_sizes"]["total"] == 1457
 
 
 def test_analyze_questionnaire_only():

@@ -684,7 +684,12 @@ export default function App() {
               const cm = rpt.confusion_matrix || [];
               const classes = rpt.classes || [];
               const classMetrics = rpt.class_metrics || {};
-              const splits = evalData.split_sizes || {};
+              const splits = evalData.split_sizes || evalData.manifest?.split_counts || {};
+              const valAcc =
+                evalData.validation_accuracy != null
+                  ? evalData.validation_accuracy
+                  : (evalData.manifest?.best_validation_accuracy ??
+                     evalData.validation_report?.accuracy);
 
               const pct = (v) =>
                 v != null ? (v * 100).toFixed(2) + "%" : "—";
@@ -711,8 +716,8 @@ export default function App() {
                     <div className="eval-card">
                       <small>BEST VALIDATION ACC</small>
                       <b>
-                        {evalData.validation_accuracy != null
-                          ? pct(evalData.validation_accuracy)
+                        {valAcc != null
+                          ? pct(valAcc)
                           : "—"}
                       </b>
                       <p>
